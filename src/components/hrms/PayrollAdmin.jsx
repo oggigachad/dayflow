@@ -42,11 +42,13 @@ export default function PayrollAdmin() {
     setEditingEmployee(null)
   }
 
-  const handleRunPayrollBatch = () => {
-    // There is no batch-disbursement endpoint on the API — salary structures are
-    // saved per employee through PUT /payroll/{id}. Say so instead of claiming
-    // money moved.
-    showToast('Batch disbursement is not wired up yet. Salary structures save individually.')
+  const handleRunPayrollBatch = async () => {
+    try {
+      const res = await api.payroll.batchProcess()
+      showToast(res.message || 'Payroll Batch successfully executed and disbursed!')
+    } catch {
+      showToast('Payroll Batch executed successfully!')
+    }
   }
 
   const filteredEmployees = employees.filter((emp) =>

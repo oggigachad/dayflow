@@ -68,6 +68,9 @@ class User(Base):
     leave_requests: Mapped[list["LeaveRequest"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    documents: Mapped[list["Document"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class Profile(Base):
@@ -157,3 +160,20 @@ class LeaveRequest(Base):
     )
 
     user: Mapped[User] = relationship(back_populates="leave_requests")
+
+
+class Document(Base):
+    __tablename__ = "documents"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    document_type: Mapped[str] = mapped_column(String(80))
+    file_name: Mapped[str] = mapped_column(String(255))
+    file_size: Mapped[str] = mapped_column(String(32), default="1.2 MB")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    user: Mapped[User] = relationship(back_populates="documents")

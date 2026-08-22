@@ -153,6 +153,18 @@ export const api = {
       })
     },
 
+    applyOnBehalf: async ({ user_id, leave_type, start_date, end_date, remarks }) => {
+      return request(`/leave/apply-on-behalf?user_id=${user_id}`, {
+        method: 'POST',
+        body: JSON.stringify({
+          leave_type: leave_type.toLowerCase(),
+          start_date,
+          end_date,
+          remarks,
+        }),
+      })
+    },
+
     getMyLeaves: async () => {
       return request('/leave/me')
     },
@@ -186,6 +198,40 @@ export const api = {
       return request(`/payroll/${userId}`, {
         method: 'PUT',
         body: JSON.stringify(payload),
+      })
+    },
+
+    batchProcess: async () => {
+      return request('/payroll/batch-process', {
+        method: 'POST',
+      })
+    },
+
+    getPayslipDownloadUrl: (userId) => {
+      return `${API_BASE_URL}/payroll/${userId}/payslip-download`
+    },
+  },
+
+  documents: {
+    getMyDocs: async () => {
+      return request('/documents/me')
+    },
+
+    getUserDocs: async (userId) => {
+      return request(`/documents/${userId}`)
+    },
+
+    uploadDoc: async ({ document_type, file_name, file_size, user_id = null }) => {
+      const query = user_id ? `?user_id=${user_id}` : ''
+      return request(`/documents/upload${query}`, {
+        method: 'POST',
+        body: JSON.stringify({ document_type, file_name, file_size }),
+      })
+    },
+
+    deleteDoc: async (docId) => {
+      return request(`/documents/${docId}`, {
+        method: 'DELETE',
       })
     },
   },

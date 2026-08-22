@@ -6,7 +6,7 @@ from sqlalchemy import text
 
 from app.config import settings
 from app.database import Base, engine
-from app.routers import analytics, attendance, auth, employees, leave, payroll, profile
+from app.routers import analytics, attendance, auth, documents, employees, leave, payroll, profile
 
 # create_all never ALTERs an existing table, so columns added after a database
 # was first created would be missing at runtime. Until Alembic lands, top them
@@ -49,6 +49,7 @@ app.include_router(employees.router)
 app.include_router(attendance.router)
 app.include_router(leave.router)
 app.include_router(payroll.router)
+app.include_router(documents.router)
 app.include_router(analytics.router)
 
 

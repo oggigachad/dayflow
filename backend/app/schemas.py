@@ -252,3 +252,30 @@ class AnalyticsSummary(BaseModel):
     present_today: int
     on_leave_today: int
     pending_leave_requests: int
+
+
+# --- documents ----------------------------------------------------------
+
+
+class DocumentCreate(BaseModel):
+    document_type: str = Field(min_length=1, max_length=80)
+    file_name: str = Field(min_length=1, max_length=255)
+    file_size: str = Field(default="1.2 MB", max_length=32)
+
+
+class DocumentOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    user_id: int
+    document_type: str
+    file_name: str
+    file_size: str
+    created_at: datetime
+
+
+# --- leave on behalf ---------------------------------------------------
+
+
+class LeaveOnBehalfCreate(LeaveCreate):
+    user_id: int

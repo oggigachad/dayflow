@@ -103,3 +103,32 @@ def decide_leave(
         employee_id=leave.user.employee_id,
         full_name=leave.user.profile.full_name,
     )
+
+
+@router.post("/apply-on-behalf", response_model=LeaveRow, status_code=status.HTTP_201_CREATED)
+def apply_leave_on_behalf(
+    payload: LeaveCreate,
+    user_id: int = Query(...),
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> LeaveRow:
+    target_user = db.get(User, user_id)
+    if target_user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
+
+    leave = LeaveRequest(
+        user_id=target_user.id,
+        leave_type=payload.leave_type,
+        start_date=payload.start_date,
+        end_date=payload.end_date,
+        remarks=payload.remarks or "Applied by HR Administrator on employee behalf",
+        status=LeaveStatus.approved,
+    )
+    db.add(leave)
+    db.commit()
+    db.refresh(leave)
+    return LeaveRow(
+        **_out(leave).model_dump(),
+        employee_id=target_user.employee_id,
+        full_name=target_user.profile.full_name if target_user.profile else target_user.email,
+    )

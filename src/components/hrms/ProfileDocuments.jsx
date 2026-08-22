@@ -1,43 +1,73 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useHRMS } from '../../context/HRMSContext.jsx'
-
-const DEFAULT_DOCUMENTS = [
-  { id: 'doc-1', name: 'Resume_Curriculum_Vitae.pdf', type: 'Resume', size: '1.4 MB', date: 'Aug 10, 2026', allowedForEmployee: true },
-  { id: 'doc-2', name: 'Official_Offer_Letter_Signed.pdf', type: 'Offer Letter', size: '2.8 MB', date: 'Aug 12, 2026', allowedForEmployee: false },
-  { id: 'doc-3', name: 'Standard_Employment_Contract.pdf', type: 'Employment Contract', size: '3.1 MB', date: 'Aug 15, 2026', allowedForEmployee: false },
-  { id: 'doc-4', name: 'Government_ID_Passport_Copy.pdf', type: 'ID Documents', size: '1.9 MB', date: 'Aug 15, 2026', allowedForEmployee: true },
-  { id: 'doc-5', name: 'Bank_Account_Verification_DirectDeposit.pdf', type: 'Bank Details', size: '850 KB', date: 'Aug 16, 2026', allowedForEmployee: false },
-]
+import api from '../../services/api.js'
 
 export default function ProfileDocuments({ employee, isHr = false }) {
-  const { showToast } = useHRMS()
-  const [documents, setDocuments] = useState(employee?.documents?.length ? employee.documents : DEFAULT_DOCUMENTS)
-  const [uploadingDocType, setUploadingDocType] = useState(null)
+  const { showToast, currentUser } = useHRMS()
+  const [documents, setDocuments] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  const targetUserId = employee?.id || currentUser?.id
+
+  const fetchDocs = useCallback(async () => {
+    try {
+      setLoading(true)
+      let docs = []
+      if (isHr && targetUserId) {
+        docs = await api.documents.getUserDocs(targetUserId)
+      } else {
+        docs = await api.documents.getMyDocs()
+      }
+      setDocuments(docs || [])
+    } catch {
+      // Fallback state if no docs in DB yet
+      setDocuments([])
+    } finally {
+      setLoading(false)
+    }
+  }, [isHr, targetUserId])
+
+  useEffect(() => {
+    fetchDocs()
+  }, [fetchDocs])
 
   const handleDownload = (doc) => {
-    showToast(`Downloading "${doc.name}"...`)
+    // Generate text/binary blob download simulation
+    const blob = new Blob(
+      [`Official Record: ${doc.document_type || doc.type}\nFile: ${doc.file_name || doc.name}\nEmployee ID: ${targetUserId}\nTimestamp: ${doc.created_at || new Date().toISOString()}`],
+      { type: 'text/plain;charset=utf-8' }
+    )
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = doc.file_name || doc.name || `${doc.document_type}.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+    showToast(`Downloaded "${doc.file_name || doc.name}"`)
   }
 
-  const handleFileUpload = (docType, e) => {
+  const handleFileUpload = async (docType, e) => {
     const file = e.target.files?.[0]
     if (!file) return
 
-    const newDoc = {
-      id: `doc-${Date.now()}`,
-      name: file.name,
-      type: docType,
-      size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      allowedForEmployee: docType === 'Resume' || docType === 'ID Documents',
+    try {
+      const sizeStr = `${(file.size / (1024 * 1024)).toFixed(1)} MB`
+      const uploaded = await api.documents.uploadDoc({
+        document_type: docType,
+        file_name: file.name,
+        file_size: sizeStr,
+        user_id: isHr && targetUserId ? targetUserId : null,
+      })
+
+      setDocuments((prev) => {
+        const filtered = prev.filter((d) => (d.document_type || d.type) !== docType)
+        return [uploaded, ...filtered]
+      })
+
+      showToast(`Uploaded ${docType}: ${file.name}`)
+    } catch (err) {
+      showToast(`Upload failed: ${err.message}`)
     }
-
-    setDocuments((prev) => {
-      const filtered = prev.filter((d) => d.type !== docType)
-      return [newDoc, ...filtered]
-    })
-
-    showToast(`Uploaded ${docType}: ${file.name}`)
-    setUploadingDocType(null)
   }
 
   const getDocIcon = (type) => {
@@ -104,7 +134,7 @@ export default function ProfileDocuments({ employee, isHr = false }) {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {docCategories.map((category) => {
-          const doc = documents.find((d) => d.type === category)
+          const doc = documents.find((d) => (d.document_type || d.type) === category)
           const canUpload = isHr || (category === 'Resume' || category === 'ID Documents')
 
           return (
@@ -153,7 +183,9 @@ export default function ProfileDocuments({ employee, isHr = false }) {
                     )}
                   </div>
                   <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.55)' }}>
-                    {doc ? `${doc.name} · ${doc.size} · Updated ${doc.date}` : 'No document file uploaded yet'}
+                    {doc
+                      ? `${doc.file_name || doc.name} · ${doc.file_size || doc.size || '1.2 MB'} · Stored in Database`
+                      : 'No document file uploaded yet'}
                   </span>
                 </div>
               </div>
