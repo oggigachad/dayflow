@@ -40,3 +40,5 @@ lerna-debug.log*
 
 # Local tooling state
 .reticle/
+.claude/
+odoo/
