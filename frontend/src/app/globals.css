@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+/* Dayflow design tokens.
+   Calm neutral base (slate) + one accent. Swap --color-accent-* to rebrand.
+   Deliberately a single light theme: HR tooling reads as a document, and one
+   committed look beats two half-tuned ones. */
+@theme {
+  --color-accent-50: #eef2ff;
+  --color-accent-100: #e0e7ff;
+  --color-accent-200: #c7d2fe;
+  --color-accent-500: #6366f1;
+  --color-accent-600: #4f46e5;
+  --color-accent-700: #4338ca;
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  background-color: var(--color-slate-50);
+  color: var(--color-slate-900);
+  font-family: var(--font-sans);
+}
+
+/* Keyboard focus stays visible everywhere; never removed for looks. */
+:focus-visible {
+  outline: 2px solid var(--color-accent-600);
+  outline-offset: 2px;
+}
