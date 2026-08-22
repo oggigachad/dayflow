@@ -283,6 +283,10 @@ export function HRMSProvider({ children, initialUser, onClosePortal }) {
             setLeaveRequests(mapped)
           }
         }
+      } catch (e) {
+        console.error('Error fetching leaves:', e)
+      }
+
       // 5. Fetch Notifications
       try {
         const notifList = await api.notifications.list()
