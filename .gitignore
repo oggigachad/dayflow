@@ -9,10 +9,13 @@ venv/
 
 # Node / Vite / Web
 node_modules/
+frontend/node_modules/
 dist/
+frontend/dist/
 dist-ssr/
 *.local
 .vite
+frontend/.vite
 
 # Logs
 logs/
