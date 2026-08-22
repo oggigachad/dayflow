@@ -3,16 +3,17 @@
 A Human Resource Management System: attendance, leave, payroll and people data,
 with role-separated employee and HR views.
 
-- **Backend** — FastAPI, SQLAlchemy 2.0, PostgreSQL, JWT auth
-- **Frontend** — Next.js 16 (App Router), TypeScript, Tailwind v4
+- **Backend** — FastAPI, SQLAlchemy 2.0, PostgreSQL, JWT auth (`backend/`)
+- **Frontend** — Next.js 16 (App Router), TypeScript, Tailwind v4 (`frontend/`)
+- **Landing Page** — React & Vite Marketing / Demo Showcase (`odoo/`)
 
 ---
 
 ## Run it
 
-Two terminals. Postgres needs to be running locally.
-
 ### 1. Backend
+
+Postgres needs to be running locally.
 
 ```bash
 cd backend
@@ -24,9 +25,9 @@ uv run python -m app.seed                                # demo users + history
 uv run uvicorn app.main:app --reload --port 8000
 ```
 
-API docs at http://localhost:8000/docs.
+API docs available at http://localhost:8000/docs.
 
-### 2. Frontend
+### 2. Frontend (Main App)
 
 ```bash
 cd frontend
@@ -37,6 +38,16 @@ npm run dev
 
 Open http://localhost:3000. If something else already owns 3000, Next falls back
 to 3001 — both origins are in the backend's default `CORS_ORIGINS`.
+
+### 3. Landing Page (Vite Showcase)
+
+```bash
+cd odoo
+npm install
+npm run dev
+```
+
+---
 
 ### Demo accounts
 
@@ -88,6 +99,10 @@ frontend/src/
   components/      UI primitives, role gate, shells, forms
   app/employee/*   overview, attendance, leave, payroll, profile
   app/admin/*      dashboard, employees, employee detail, attendance, approvals
+
+odoo/src/
+  components/      landing page hero, features carousel, role comparison, pricing
+  styles/          animations and responsive styling
 ```
 
 ---
