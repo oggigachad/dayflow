@@ -3,16 +3,8 @@
 A Human Resource Management System: attendance, leave, payroll and people data,
 with role-separated employee and HR views.
 
-This repo holds **two separate frontends**. Know which one you are demoing:
-
-| Part | Path | Talks to the API? |
-|---|---|---|
-| **API** — FastAPI, SQLAlchemy 2.0, PostgreSQL, JWT auth | `backend/` | — |
-| **Main app** — Next.js 16 (App Router), TypeScript, Tailwind v4 | `frontend/` | **Yes.** Real data, real auth, real RBAC. |
-| **Showcase** — landing page + portal walkthrough, React & Vite | repo root (`src/`, `index.html`) | **No.** Client-side mock state only. |
-
-The showcase is a walkthrough, not the product: it fakes its own state so it can
-be demoed with nothing else running. The real flows live in `frontend/`.
+- **Backend** — FastAPI, SQLAlchemy 2.0, PostgreSQL, JWT auth (`backend/`)
+- **Frontend** — Next.js 16 (App Router), TypeScript, Tailwind v4 (`frontend/`)
 
 ---
 
@@ -45,16 +37,6 @@ npm run dev
 
 Open http://localhost:3000. If something else already owns 3000, Next falls back
 to 3001 — both origins are in the backend's default `CORS_ORIGINS`.
-
-### 3. Showcase (Vite landing page + portal walkthrough)
-
-Runs from the repo root. Mock data — it does not need the
-backend running.
-
-```bash
-npm install
-npm run dev
-```
 
 ---
 
@@ -108,12 +90,6 @@ frontend/src/
   components/      UI primitives, role gate, shells, forms
   app/employee/*   overview, attendance, leave, payroll, profile
   app/admin/*      dashboard, employees, employee detail, attendance, approvals
-
-src/                 (repo root — the Vite showcase, mock data)
-  components/        landing hero, features carousel, role comparison, pricing
-  components/hrms/   portal walkthrough screens
-  context/           HRMSContext — useState + localStorage, no API calls
-  styles/            animations and responsive styling
 ```
 
 ---
@@ -163,9 +139,3 @@ cd frontend && npx tsc --noEmit && npx eslint src && npm run build
 - **Refresh tokens are not revocable.** There is no server-side token store, so
   a logout clears the client only. Fine for a demo, not for production.
 - **Analytics is three counts.** Charts and trends would go here next.
-- **The showcase and the real app are not connected.** The Vite portal at the
-  repo root mocks its own state, so a change made there does not reach the
-  database. Demo the flows from `frontend/` if you want them to be real.
-- **History carries a deleted `node_modules`.** An early commit tracked
-  `odoo/node_modules` (2267 files). The directory is gone from the tree, but the
-  blobs remain in history, so `.git` stays around 21 MB until someone rewrites it.
