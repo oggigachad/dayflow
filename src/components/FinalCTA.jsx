@@ -1,3 +1,5 @@
+import React from 'react'
+
 export default function FinalCTA({ onOpenAuth }) {
   return (
     <section className="final-cta-section" id="faq">

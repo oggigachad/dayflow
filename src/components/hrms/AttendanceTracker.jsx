@@ -5,12 +5,16 @@ export default function AttendanceTracker() {
   const {
     activeEmployee,
     attendance,
+    liveDate,
+    liveTime,
+    liveTimeWithSeconds,
+    liveDateFormatted,
     handleCheckIn,
     handleCheckOut,
   } = useHRMS()
 
   const [viewMode, setViewMode] = useState('daily') // 'daily' | 'weekly'
-  const todayStr = new Date().toISOString().split('T')[0]
+  const todayStr = liveDate
 
   const todayRecord = attendance.find(
     (a) => a.employeeId === activeEmployee.id && a.date === todayStr
@@ -20,6 +24,29 @@ export default function AttendanceTracker() {
 
   // Weekly sample logs for the active employee
   const employeeHistory = attendance.filter((a) => a.employeeId === activeEmployee.id)
+
+  // Current week Mon–Fri, built from the real attendance rows. This grid used to
+  // be a hardcoded Aug 18–22 sample that never moved.
+  const weekDays = (() => {
+    const [y, m, d] = todayStr.split('-').map(Number)
+    const monday = new Date(y, m - 1, d)
+    // getDay() is 0 for Sunday, which belongs to the *previous* Monday.
+    monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7))
+
+    return Array.from({ length: 5 }, (_, i) => {
+      const cursor = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i)
+      const iso = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`
+      const rec = employeeHistory.find((a) => a.date === iso)
+      const isFuture = iso > todayStr
+
+      return {
+        day: cursor.toLocaleDateString('en-US', { weekday: 'long' }),
+        date: cursor.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        hours: rec ? (rec.checkOut !== '--:--' ? rec.hours : 'Active') : isFuture ? '—' : '0 hrs',
+        status: rec ? rec.status.toLowerCase() : isFuture ? 'pending' : 'absent',
+      }
+    })
+  })()
 
   return (
     <div className="hrms-card animate-fade-in-up">
@@ -101,7 +128,7 @@ export default function AttendanceTracker() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'rgb(122,50,227)' }}>
-              Current Shift · {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}
+              Current Shift · {liveDateFormatted} ({liveDate})
             </span>
             <span className={`hrms-pill ${isCheckedIn ? 'present' : 'absent'}`}>
               <span className="hrms-pill-dot" />
@@ -110,8 +137,8 @@ export default function AttendanceTracker() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
-            <span style={{ fontSize: 36, fontWeight: 700, letterSpacing: '-0.04em', color: '#000' }}>
-              {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            <span style={{ fontSize: 36, fontWeight: 700, letterSpacing: '-0.04em', color: '#000', fontFamily: 'monospace' }}>
+              {liveTimeWithSeconds || liveTime}
             </span>
             <span style={{ fontSize: 14, color: 'rgba(0,0,0,0.6)' }}>
               {isCheckedIn
@@ -168,7 +195,7 @@ export default function AttendanceTracker() {
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
                 <polyline points="20 6 9 17 4 12" />
               </svg>
-              <span>Day Complete · 8.5 Hours Logged</span>
+              <span>Day Complete · {todayRecord?.hours || '0 hrs'} Logged</span>
             </div>
           )}
         </div>
@@ -215,13 +242,7 @@ export default function AttendanceTracker() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           <h3 style={{ fontSize: 18, fontWeight: 600, color: '#000' }}>Weekly Timesheet Overview</h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 14 }}>
-            {[
-              { day: 'Monday', date: 'Aug 18', hours: '9.0 hrs', status: 'present' },
-              { day: 'Tuesday', date: 'Aug 19', hours: '4.2 hrs', status: 'half-day' },
-              { day: 'Wednesday', date: 'Aug 20', hours: '8.3 hrs', status: 'present' },
-              { day: 'Thursday', date: 'Aug 21', hours: '8.8 hrs', status: 'present' },
-              { day: 'Friday', date: 'Aug 22', hours: isCheckedIn ? 'Active' : 'Pending', status: isCheckedIn ? 'present' : 'pending' },
-            ].map((d, i) => (
+            {weekDays.map((d, i) => (
               <div
                 key={i}
                 style={{

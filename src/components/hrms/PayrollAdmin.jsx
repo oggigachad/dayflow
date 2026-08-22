@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { useHRMS } from '../../context/HRMSContext.jsx'
 
 export default function PayrollAdmin() {
-  const { employees, handleUpdatePayroll, showToast } = useHRMS()
+  const { employees, handleUpdatePayroll, showToast, liveDate } = useHRMS()
 
   const [editingEmployee, setEditingEmployee] = useState(null)
   const [basic, setBasic] = useState('')
@@ -13,10 +13,10 @@ export default function PayrollAdmin() {
 
   const handleStartEdit = (emp) => {
     setEditingEmployee(emp)
-    setBasic(emp.salary?.basic || 5000)
-    setHra(emp.salary?.hra || 2000)
-    setAllowances(emp.salary?.allowances || 1000)
-    setDeductions(emp.salary?.deductions || 500)
+    setBasic(emp.salary?.basic || 0)
+    setHra(emp.salary?.hra || 0)
+    setAllowances(emp.salary?.allowances || 0)
+    setDeductions(emp.salary?.deductions || 0)
   }
 
   const handleSaveSalary = (e) => {
@@ -43,7 +43,10 @@ export default function PayrollAdmin() {
   }
 
   const handleRunPayrollBatch = () => {
-    showToast('August Payroll Batch executed! Automated ACH direct deposits initiated.')
+    // There is no batch-disbursement endpoint on the API — salary structures are
+    // saved per employee through PUT /payroll/{id}. Say so instead of claiming
+    // money moved.
+    showToast('Batch disbursement is not wired up yet. Salary structures save individually.')
   }
 
   const filteredEmployees = employees.filter((emp) =>
@@ -53,9 +56,18 @@ export default function PayrollAdmin() {
   )
 
   const totalPayrollCost = employees.reduce(
-    (acc, emp) => acc + (emp.salary?.net || 8000),
+    (acc, emp) => acc + (emp.salary?.net || emp.salary?.basic || 0),
     0
   )
+
+  // Real deductions across the org, not an assumed 8% of payroll.
+  const totalDeductions = employees.reduce((acc, emp) => acc + (emp.salary?.deductions || 0), 0)
+
+  // Pay cycle closes on the last calendar day of the current month, derived from
+  // the live date instead of a frozen "August 31, 2026".
+  const [cycleYear, cycleMonth, cycleDay] = liveDate.split('-').map(Number)
+  const payCycleDate = new Date(cycleYear, cycleMonth, 0)
+  const daysUntilPayCycle = payCycleDate.getDate() - cycleDay
 
   return (
     <div className="animate-fade-in-up" style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
@@ -75,10 +87,12 @@ export default function PayrollAdmin() {
         <div className="hrms-card" style={{ padding: 24, gap: 10 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.55)', fontWeight: 600 }}>Next Pay Cycle Date</span>
-            <span className="hrms-pill pending">In 9 Days</span>
+            <span className="hrms-pill pending">
+              {daysUntilPayCycle <= 0 ? 'Today' : `In ${daysUntilPayCycle} ${daysUntilPayCycle === 1 ? 'Day' : 'Days'}`}
+            </span>
           </div>
           <span style={{ fontSize: 32, fontWeight: 700, letterSpacing: '-0.04em', color: '#000' }}>
-            August 31, 2026
+            {payCycleDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
           </span>
           <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)' }}>Automated ACH bank disbursement</span>
         </div>
@@ -89,7 +103,7 @@ export default function PayrollAdmin() {
             <span className="hrms-pill present">Compliant</span>
           </div>
           <span style={{ fontSize: 32, fontWeight: 700, letterSpacing: '-0.04em', color: '#000' }}>
-            ${(totalPayrollCost * 0.08).toFixed(0).toLocaleString()}
+            ${totalDeductions.toLocaleString()}
           </span>
           <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)' }}>Auto-deducted and reconciled</span>
         </div>
@@ -262,7 +276,9 @@ export default function PayrollAdmin() {
             </thead>
             <tbody>
               {filteredEmployees.map((emp) => {
-                const s = emp.salary || { basic: 5000, hra: 2000, allowances: 1000, deductions: 500, net: 7500, annualCTC: '$96,000' }
+                // Zeros, not a plausible-looking $5,000 placeholder — a fake
+                // number here is indistinguishable from a real salary.
+                const s = emp.salary || { basic: 0, hra: 0, allowances: 0, deductions: 0, net: 0, annualCTC: '$0' }
                 return (
                   <tr key={emp.id}>
                     <td>

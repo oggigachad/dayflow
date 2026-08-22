@@ -1,3 +1,5 @@
+import React from 'react'
+
 export default function ComingSoon() {
   return (
     <section className="coming-soon-section" id="pricing">

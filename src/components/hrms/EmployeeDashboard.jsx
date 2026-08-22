@@ -9,23 +9,31 @@ export default function EmployeeDashboard() {
     attendance,
     leaveRequests,
     notifications,
+    liveDate,
+    liveTime,
+    liveTimeWithSeconds,
+    liveDateFormatted,
     handleCheckIn,
     handleCheckOut,
     onClosePortal,
   } = useHRMS()
 
-  const todayStr = new Date().toISOString().split('T')[0]
+  const todayStr = liveDate
   const todayRecord = attendance.find(
-    (a) => a.employeeId === activeEmployee.id && a.date === todayStr
+    (a) => (a.employeeId === activeEmployee.id || a.employeeId === activeEmployee.employeeId) && a.date === todayStr
   )
-  const isCheckedInToday = todayRecord && todayRecord.checkIn !== '--:--'
-  const isCheckedOutToday = todayRecord && todayRecord.checkOut !== '--:--'
+  const isCheckedInToday = todayRecord && todayRecord.checkIn && todayRecord.checkIn !== '--:--'
+  const isCheckedOutToday = todayRecord && todayRecord.checkOut && todayRecord.checkOut !== '--:--'
 
-  // User's own leave balance calculation
-  const myLeaves = leaveRequests.filter((l) => l.employeeId === activeEmployee.id)
+  // User's own leave calculations
+  const myLeaves = leaveRequests.filter(
+    (l) => l.employeeId === activeEmployee.id || l.employeeId === activeEmployee.employeeId
+  )
   const approvedLeavesCount = myLeaves
     .filter((l) => l.status === 'Approved')
     .reduce((acc, l) => acc + (l.days || 1), 0)
+
+  const presentDaysCount = attendance.filter((a) => a.status === 'Present').length
 
   return (
     <div className="animate-fade-in-up" style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
@@ -48,7 +56,7 @@ export default function EmployeeDashboard() {
                 boxShadow: '0 8px 24px rgba(122,50,227,0.25)',
               }}
             >
-              {activeEmployee.avatar || activeEmployee.name.charAt(0)}
+              {activeEmployee.avatar || (activeEmployee.name || 'U').charAt(0)}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
@@ -104,12 +112,7 @@ export default function EmployeeDashboard() {
                 style={{ height: 44, padding: '0 20px', fontSize: 14, borderRadius: 14 }}
                 onClick={handleCheckIn}
               >
-                <span>Check In Now</span>
-                <span className="cta-primary-circle" style={{ width: 22, height: 22 }}>
-                  <svg viewBox="0 0 14 14" fill="none" style={{ width: 10, height: 10 }}>
-                    <path d="M3 7h8m0 0L8 4m3 3L8 10" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </span>
+                <span>Check In</span>
               </button>
             ) : !isCheckedOutToday ? (
               <button
@@ -129,7 +132,7 @@ export default function EmployeeDashboard() {
         </div>
       </div>
 
-      {/* 3.2.1 Quick-access Cards (Styled matching .scenario-feature-card convention) */}
+      {/* 3.2.1 Quick-access Cards */}
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h2 style={{ fontSize: 22, fontWeight: 600, letterSpacing: '-0.03em' }}>
@@ -206,34 +209,34 @@ export default function EmployeeDashboard() {
         <div className="hrms-card" style={{ padding: 24, gap: 10 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.55)', fontWeight: 600 }}>This Month's Attendance</span>
-            <span className="hrms-pill present">98% Rate</span>
+            <span className="hrms-pill present">Live</span>
           </div>
           <span style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: '#000' }}>
-            21 / 22 Days
+            {presentDaysCount} Logged
           </span>
-          <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)' }}>1 Half-Day · 0 Unexcused</span>
+          <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)' }}>Verified via real-time attendance logs</span>
         </div>
 
         <div className="hrms-card" style={{ padding: 24, gap: 10 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.55)', fontWeight: 600 }}>Available Paid Leave</span>
-            <span className="hrms-pill pending">10 Days Left</span>
+            <span className="hrms-pill pending">{Math.max(0, 12 - approvedLeavesCount)} Days Left</span>
           </div>
           <span style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: '#000' }}>
-            {12 - approvedLeavesCount} <span style={{ fontSize: 16, fontWeight: 500, color: 'rgba(0,0,0,0.5)' }}>/ 12 Total</span>
+            {Math.max(0, 12 - approvedLeavesCount)} <span style={{ fontSize: 16, fontWeight: 500, color: 'rgba(0,0,0,0.5)' }}>/ 12 Total</span>
           </span>
-          <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)' }}>4 Sick Leaves Remaining</span>
+          <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)' }}>{approvedLeavesCount} Days Taken</span>
         </div>
 
         <div className="hrms-card" style={{ padding: 24, gap: 10 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.55)', fontWeight: 600 }}>Net Monthly Payout</span>
-            <span className="hrms-pill paid">Processed</span>
+            <span className="hrms-pill paid">On File</span>
           </div>
           <span style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: '#000' }}>
-            ${activeEmployee.salary?.net?.toLocaleString() || '8,800'}
+            ${(activeEmployee.salary?.net || activeEmployee.salary?.basic || 0).toLocaleString()}
           </span>
-          <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)' }}>Next pay date: August 31, 2026</span>
+          <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)' }}>Direct from payroll structure</span>
         </div>
       </div>
 
@@ -262,56 +265,48 @@ export default function EmployeeDashboard() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {notifications.map((item) => (
-            <div
-              key={item.id}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '16px 20px',
-                background: 'rgb(254, 241, 238)',
-                borderRadius: 16,
-                gap: 16,
-                border: '1px solid rgba(0,0,0,0.04)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                <div
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: '50%',
-                    background: '#fff',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                    boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
-                  }}
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgb(122,50,227)" strokeWidth="2">
-                    <polyline points="9 11 12 14 22 4" />
-                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-                  </svg>
-                </div>
-                <div>
-                  <h4 style={{ fontSize: 15, fontWeight: 600, color: '#000' }}>{item.title}</h4>
-                  <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.6)', marginTop: 2 }}>{item.desc}</p>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-                <span className={`hrms-pill ${item.type}`}>
-                  <span className="hrms-pill-dot" />
-                  {item.type}
-                </span>
-                <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)', fontWeight: 500 }}>
-                  {item.time}
-                </span>
-              </div>
+          {notifications.length === 0 ? (
+            <div style={{ padding: '30px 20px', textAlign: 'center', color: 'rgba(0,0,0,0.5)' }}>
+              No recent notifications. Real-time check-ins and leave approval status changes will appear here.
             </div>
-          ))}
+          ) : (
+            notifications.map((item) => (
+              <div
+                key={item.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '16px 20px',
+                  background: 'rgb(254, 241, 238)',
+                  borderRadius: 16,
+                  gap: 16,
+                  border: '1px solid rgba(0,0,0,0.04)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <div
+                    style={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: '50%',
+                      background:
+                        item.type === 'approved' || item.type === 'present'
+                          ? 'rgb(16,185,129)'
+                          : item.type === 'pending'
+                          ? 'rgb(122,50,227)'
+                          : 'rgb(253,135,61)',
+                    }}
+                  />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <strong style={{ color: '#000', fontSize: 14 }}>{item.title}</strong>
+                    <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.6)' }}>{item.desc}</span>
+                  </div>
+                </div>
+                <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)', fontWeight: 500 }}>{item.time}</span>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>

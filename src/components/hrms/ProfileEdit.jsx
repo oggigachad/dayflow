@@ -1,33 +1,39 @@
 import React, { useState } from 'react'
 import { useHRMS } from '../../context/HRMSContext.jsx'
 
-export default function ProfileEdit({ onCancel }) {
+export default function ProfileEdit({ onCancel, isHrSelf = false }) {
   const { activeEmployee, currentUser, handleUpdateProfile } = useHRMS()
   const isAdmin = currentUser.role === 'hr'
 
   // Form State
-  const [name, setName] = useState(activeEmployee.name)
-  const [email, setEmail] = useState(activeEmployee.email)
-  const [phone, setPhone] = useState(activeEmployee.phone)
-  const [address, setAddress] = useState(activeEmployee.address)
+  const [name, setName] = useState(activeEmployee.name || '')
+  const [email, setEmail] = useState(activeEmployee.email || '')
+  const [phone, setPhone] = useState(activeEmployee.phone || '')
+  const [address, setAddress] = useState(activeEmployee.address || '')
+  const [dob, setDob] = useState(activeEmployee.dob || '1995-05-14')
+  const [gender, setGender] = useState(activeEmployee.gender || 'Male')
   const [emergencyContact, setEmergencyContact] = useState(activeEmployee.emergencyContact || '')
-  const [title, setTitle] = useState(activeEmployee.title)
-  const [department, setDepartment] = useState(activeEmployee.department)
-  const [manager, setManager] = useState(activeEmployee.manager)
-  const [avatar, setAvatar] = useState(activeEmployee.avatar || activeEmployee.name.charAt(0))
+  const [workLocation, setWorkLocation] = useState(activeEmployee.workLocation || 'Headquarters')
+  const [title, setTitle] = useState(activeEmployee.title || '')
+  const [department, setDepartment] = useState(activeEmployee.department || 'Operations')
+  const [manager, setManager] = useState(activeEmployee.manager || 'HR Lead')
+  const [joiningDate, setJoiningDate] = useState(activeEmployee.joiningDate || '2026-08-01')
+  const [employmentType, setEmploymentType] = useState(activeEmployee.employmentType || 'Full-time')
+  const [status, setStatus] = useState(activeEmployee.status || 'Active')
+  const [avatar, setAvatar] = useState(activeEmployee.avatar || (activeEmployee.name || 'U').charAt(0))
   const [errors, setErrors] = useState({})
 
   const validate = () => {
     const newErrors = {}
-    if (!phone.trim() || phone.length < 7) {
+    if (!phone.trim() || phone.length < 5) {
       newErrors.phone = 'Please enter a valid phone number.'
     }
-    if (!address.trim() || address.length < 5) {
-      newErrors.address = 'Please enter a complete residential address.'
+    if (!address.trim() || address.length < 3) {
+      newErrors.address = 'Please enter a valid address.'
     }
-    if (isAdmin) {
-      if (!name.trim()) newErrors.name = 'Name is required.'
-      if (!email.trim() || !email.includes('@')) newErrors.email = 'Valid email is required.'
+    if (isAdmin && !isHrSelf) {
+      if (!name.trim()) newErrors.name = 'Full legal name is required.'
+      if (!email.trim() || !email.includes('@')) newErrors.email = 'Valid corporate email is required.'
       if (!title.trim()) newErrors.title = 'Job title is required.'
     }
     setErrors(newErrors)
@@ -41,16 +47,32 @@ export default function ProfileEdit({ onCancel }) {
     const updatedData = {
       phone,
       address,
-      emergencyContact,
       avatar,
-      ...(isAdmin ? { name, email, title, department, manager } : {}),
+      ...(isHrSelf
+        ? { workLocation, joiningDate }
+        : isAdmin
+        ? {
+            name,
+            email,
+            title,
+            department,
+            manager,
+            dob,
+            gender,
+            emergencyContact,
+            workLocation,
+            joiningDate,
+            employmentType,
+            status,
+          }
+        : {}),
     }
 
     handleUpdateProfile(activeEmployee.id, updatedData)
   }
 
   return (
-    <div className="animate-fade-in-up" style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 900, margin: '0 auto' }}>
+    <div className="animate-fade-in-up" style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 960, margin: '0 auto' }}>
       <div className="hrms-card">
         <div className="hrms-card-header" style={{ paddingBottom: 16, borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
           <div className="hrms-card-title-group">
@@ -62,9 +84,11 @@ export default function ProfileEdit({ onCancel }) {
               Edit Profile — {activeEmployee.name}
             </h2>
             <p className="hrms-card-subtitle">
-              {isAdmin
-                ? 'Admin Mode: Full editing authority across all employee attributes'
-                : 'Employee Self-Service: You can update your contact phone, address, and avatar'}
+              {isAdmin && !isHrSelf
+                ? 'Admin Mode: Full editing authority across all employee personal and employment fields'
+                : isHrSelf
+                ? 'Admin Profile Settings: Update contact, work location, and badge initials'
+                : 'Employee Self-Service: You can update your phone, address, and profile photo badge'}
             </p>
           </div>
 
@@ -93,183 +117,276 @@ export default function ProfileEdit({ onCancel }) {
               {avatar}
             </div>
             <div style={{ flex: 1 }}>
-              <label className="auth-label" style={{ marginBottom: 6 }}>Avatar Badge Initial</label>
+              <label className="auth-label" style={{ marginBottom: 6 }}>Avatar Badge Initial / Photo</label>
               <input
                 type="text"
                 maxLength={2}
                 value={avatar}
                 onChange={(e) => setAvatar(e.target.value.toUpperCase())}
-                style={{
-                  width: 80,
-                  height: 40,
-                  borderRadius: 10,
-                  border: '1.5px solid rgba(0,0,0,0.14)',
-                  textAlign: 'center',
-                  fontWeight: 700,
-                  fontSize: 16,
-                }}
+                className="auth-input"
+                style={{ width: 100, textAlign: 'center', fontSize: 18, fontWeight: 700 }}
               />
-              <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', marginLeft: 12 }}>
-                Enter 1-2 letters to represent your profile avatar
-              </span>
             </div>
           </div>
 
-          {/* Form Fields Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-            {/* Full Name */}
-            <div className="auth-input-group">
-              <label className="auth-label">
-                <span>Full Name</span>
-                {!isAdmin && <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>Read-only</span>}
-              </label>
-              <input
-                type="text"
-                className={`auth-input ${errors.name ? 'error' : ''}`}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                disabled={!isAdmin}
-                style={{ background: !isAdmin ? '#f5f5f5' : '#fff', cursor: !isAdmin ? 'not-allowed' : 'text' }}
-              />
-              {errors.name && <span className="auth-field-error">{errors.name}</span>}
-            </div>
+          {/* Card 1: Personal Details */}
+          <div className="hrms-card" style={{ gap: 18 }}>
+            <h3 className="hrms-card-title" style={{ fontSize: 18 }}>Personal Details</h3>
 
-            {/* Email */}
-            <div className="auth-input-group">
-              <label className="auth-label">
-                <span>Corporate Email</span>
-                {!isAdmin && <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>Read-only</span>}
-              </label>
-              <input
-                type="email"
-                className={`auth-input ${errors.email ? 'error' : ''}`}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={!isAdmin}
-                style={{ background: !isAdmin ? '#f5f5f5' : '#fff', cursor: !isAdmin ? 'not-allowed' : 'text' }}
-              />
-              {errors.email && <span className="auth-field-error">{errors.email}</span>}
-            </div>
-
-            {/* Phone Number (Editable by all) */}
-            <div className="auth-input-group">
-              <label className="auth-label">
-                <span>Direct Phone Number</span>
-                <span style={{ fontSize: 11, color: 'rgb(122,50,227)' }}>Editable</span>
-              </label>
-              <input
-                type="text"
-                className={`auth-input ${errors.phone ? 'error' : ''}`}
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+1 (555) 000-0000"
-              />
-              {errors.phone && <span className="auth-field-error">{errors.phone}</span>}
-            </div>
-
-            {/* Emergency Contact */}
-            <div className="auth-input-group">
-              <label className="auth-label">
-                <span>Emergency Contact Info</span>
-                <span style={{ fontSize: 11, color: 'rgb(122,50,227)' }}>Editable</span>
-              </label>
-              <input
-                type="text"
-                className="auth-input"
-                value={emergencyContact}
-                onChange={(e) => setEmergencyContact(e.target.value)}
-                placeholder="Name & contact phone"
-              />
-            </div>
-
-            {/* Address (Editable by all) */}
-            <div className="auth-input-group" style={{ gridColumn: 'span 2' }}>
-              <label className="auth-label">
-                <span>Residential Address</span>
-                <span style={{ fontSize: 11, color: 'rgb(122,50,227)' }}>Editable</span>
-              </label>
-              <input
-                type="text"
-                className={`auth-input ${errors.address ? 'error' : ''}`}
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                placeholder="Full residential street, city, state & zip"
-              />
-              {errors.address && <span className="auth-field-error">{errors.address}</span>}
-            </div>
-
-            {/* Job Title */}
-            <div className="auth-input-group">
-              <label className="auth-label">
-                <span>Job Title</span>
-                {!isAdmin && <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>Admin only</span>}
-              </label>
-              <input
-                type="text"
-                className={`auth-input ${errors.title ? 'error' : ''}`}
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                disabled={!isAdmin}
-                style={{ background: !isAdmin ? '#f5f5f5' : '#fff', cursor: !isAdmin ? 'not-allowed' : 'text' }}
-              />
-            </div>
-
-            {/* Department */}
-            <div className="auth-input-group">
-              <label className="auth-label">
-                <span>Department</span>
-                {!isAdmin && <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>Admin only</span>}
-              </label>
-              {isAdmin ? (
-                <select
-                  value={department}
-                  onChange={(e) => setDepartment(e.target.value)}
-                  className="auth-input"
-                  style={{ cursor: 'pointer' }}
-                >
-                  <option value="Engineering">Engineering</option>
-                  <option value="Design">Design</option>
-                  <option value="Human Resources">Human Resources</option>
-                  <option value="DevOps">DevOps</option>
-                </select>
-              ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+              {/* Employee ID (Read-only) */}
+              <div>
+                <label className="auth-label">Employee ID (Read-only)</label>
                 <input
                   type="text"
-                  className="auth-input"
-                  value={department}
                   disabled
-                  style={{ background: '#f5f5f5', cursor: 'not-allowed' }}
+                  value={activeEmployee.id}
+                  className="auth-input"
+                  style={{ background: 'rgba(0,0,0,0.04)', color: 'rgba(0,0,0,0.6)', cursor: 'not-allowed' }}
                 />
+              </div>
+
+              {/* Full Name */}
+              <div>
+                <label className="auth-label">Full Legal Name</label>
+                <input
+                  type="text"
+                  disabled={!isAdmin || isHrSelf}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className={`auth-input ${errors.name ? 'error' : ''}`}
+                  style={!isAdmin || isHrSelf ? { background: 'rgba(0,0,0,0.04)', cursor: 'not-allowed' } : {}}
+                />
+                {errors.name && <span className="auth-field-error">{errors.name}</span>}
+              </div>
+
+              {/* Email */}
+              <div>
+                <label className="auth-label">Corporate Email</label>
+                <input
+                  type="email"
+                  disabled={!isAdmin || isHrSelf}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className={`auth-input ${errors.email ? 'error' : ''}`}
+                  style={!isAdmin || isHrSelf ? { background: 'rgba(0,0,0,0.04)', cursor: 'not-allowed' } : {}}
+                />
+                {errors.email && <span className="auth-field-error">{errors.email}</span>}
+              </div>
+
+              {/* Phone (Self-editable) */}
+              <div>
+                <label className="auth-label">Direct Phone Number (Editable)</label>
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className={`auth-input ${errors.phone ? 'error' : ''}`}
+                  placeholder="+1 (555) 000-0000"
+                />
+                {errors.phone && <span className="auth-field-error">{errors.phone}</span>}
+              </div>
+
+              {!isHrSelf && (
+                <>
+                  {/* DOB */}
+                  <div>
+                    <label className="auth-label">Date of Birth</label>
+                    <input
+                      type="date"
+                      disabled={!isAdmin}
+                      value={dob}
+                      onChange={(e) => setDob(e.target.value)}
+                      className="auth-input"
+                      style={!isAdmin ? { background: 'rgba(0,0,0,0.04)', cursor: 'not-allowed' } : {}}
+                    />
+                  </div>
+
+                  {/* Gender */}
+                  <div>
+                    <label className="auth-label">Gender</label>
+                    <select
+                      disabled={!isAdmin}
+                      value={gender}
+                      onChange={(e) => setGender(e.target.value)}
+                      className="auth-input"
+                      style={!isAdmin ? { background: 'rgba(0,0,0,0.04)', cursor: 'not-allowed' } : {}}
+                    >
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Non-binary">Non-binary</option>
+                      <option value="Prefer not to say">Prefer not to say</option>
+                    </select>
+                  </div>
+
+                  {/* Emergency Contact */}
+                  <div>
+                    <label className="auth-label">Emergency Contact</label>
+                    <input
+                      type="text"
+                      disabled={!isAdmin}
+                      value={emergencyContact}
+                      onChange={(e) => setEmergencyContact(e.target.value)}
+                      className="auth-input"
+                      placeholder="Jane Doe (+1 555-987-6543)"
+                      style={!isAdmin ? { background: 'rgba(0,0,0,0.04)', cursor: 'not-allowed' } : {}}
+                    />
+                  </div>
+                </>
               )}
+
+              {/* Work Location */}
+              <div>
+                <label className="auth-label">Work Location</label>
+                <input
+                  type="text"
+                  disabled={!isAdmin}
+                  value={workLocation}
+                  onChange={(e) => setWorkLocation(e.target.value)}
+                  className="auth-input"
+                  placeholder="Headquarters / Remote"
+                  style={!isAdmin ? { background: 'rgba(0,0,0,0.04)', cursor: 'not-allowed' } : {}}
+                />
+              </div>
+
+              {/* Address (Self-editable) */}
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label className="auth-label">Residential Address (Editable)</label>
+                <textarea
+                  rows={2}
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  className={`auth-input ${errors.address ? 'error' : ''}`}
+                  style={{ height: 'auto', padding: '12px 16px' }}
+                  placeholder="123 Innovation Street, San Francisco, CA"
+                />
+                {errors.address && <span className="auth-field-error">{errors.address}</span>}
+              </div>
             </div>
           </div>
 
-          {/* Actions */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 14, marginTop: 12, paddingTop: 16, borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+          {/* Card 2: Employment Details (Admin Only, omitted for HR Self Profile) */}
+          {!isHrSelf && (
+            <div className="hrms-card" style={{ gap: 18 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 className="hrms-card-title" style={{ fontSize: 18 }}>Employment Details</h3>
+                {!isAdmin && (
+                  <span className="hrms-pill pending" style={{ fontSize: 11 }}>Read-only (Admin Managed)</span>
+                )}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+                {/* Joining Date */}
+                <div>
+                  <label className="auth-label">Date of Joining</label>
+                  <input
+                    type="date"
+                    disabled={!isAdmin}
+                    value={joiningDate}
+                    onChange={(e) => setJoiningDate(e.target.value)}
+                    className="auth-input"
+                    style={!isAdmin ? { background: 'rgba(0,0,0,0.04)', cursor: 'not-allowed' } : {}}
+                  />
+                </div>
+
+                {/* Employment Type */}
+                <div>
+                  <label className="auth-label">Employment Type</label>
+                  <select
+                    disabled={!isAdmin}
+                    value={employmentType}
+                    onChange={(e) => setEmploymentType(e.target.value)}
+                    className="auth-input"
+                    style={!isAdmin ? { background: 'rgba(0,0,0,0.04)', cursor: 'not-allowed' } : {}}
+                  >
+                    <option value="Full-time">Full-time</option>
+                    <option value="Part-time">Part-time</option>
+                    <option value="Contract">Contract</option>
+                  </select>
+                </div>
+
+                {/* Department */}
+                <div>
+                  <label className="auth-label">Department</label>
+                  <select
+                    disabled={!isAdmin}
+                    value={department}
+                    onChange={(e) => setDepartment(e.target.value)}
+                    className="auth-input"
+                    style={!isAdmin ? { background: 'rgba(0,0,0,0.04)', cursor: 'not-allowed' } : {}}
+                  >
+                    <option value="Engineering">Engineering</option>
+                    <option value="Human Resources">Human Resources</option>
+                    <option value="Design">Design</option>
+                    <option value="DevOps">DevOps</option>
+                    <option value="Operations">Operations</option>
+                    <option value="Sales">Sales</option>
+                    <option value="Marketing">Marketing</option>
+                  </select>
+                </div>
+
+                {/* Designation */}
+                <div>
+                  <label className="auth-label">Designation / Title</label>
+                  <input
+                    type="text"
+                    disabled={!isAdmin}
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className="auth-input"
+                    style={!isAdmin ? { background: 'rgba(0,0,0,0.04)', cursor: 'not-allowed' } : {}}
+                  />
+                </div>
+
+                {/* Reporting Manager */}
+                <div>
+                  <label className="auth-label">Reporting Manager</label>
+                  <input
+                    type="text"
+                    disabled={!isAdmin}
+                    value={manager}
+                    onChange={(e) => setManager(e.target.value)}
+                    className="auth-input"
+                    style={!isAdmin ? { background: 'rgba(0,0,0,0.04)', cursor: 'not-allowed' } : {}}
+                  />
+                </div>
+
+                {/* Status */}
+                <div>
+                  <label className="auth-label">Employee Status</label>
+                  <select
+                    disabled={!isAdmin}
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value)}
+                    className="auth-input"
+                    style={!isAdmin ? { background: 'rgba(0,0,0,0.04)', cursor: 'not-allowed' } : {}}
+                  >
+                    <option value="Active">Active</option>
+                    <option value="On Leave">On Leave</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Form Actions */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 8 }}>
             <button
               type="button"
               className="cta-secondary"
-              style={{ height: 50, padding: '0 24px', fontSize: 15, borderRadius: 16 }}
+              style={{ height: 46, padding: '0 24px', fontSize: 14, borderRadius: 14 }}
               onClick={onCancel}
             >
               Cancel
             </button>
-            <div className="cta-primary-wrapper">
-              <div className="cta-primary-border"><div className="cta-primary-border-inner" /></div>
-              <div className="cta-primary-bg" />
-              <button
-                type="submit"
-                className="cta-primary"
-                style={{ height: 50, padding: '0 28px', fontSize: 15, borderRadius: 16 }}
-              >
-                <span>Save Profile Changes</span>
-                <span className="cta-primary-circle" style={{ width: 24, height: 24 }}>
-                  <svg viewBox="0 0 14 14" fill="none" style={{ width: 11, height: 11 }}>
-                    <path d="M3 7h8m0 0L8 4m3 3L8 10" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </span>
-              </button>
-            </div>
+            <button
+              type="submit"
+              className="cta-primary"
+              style={{ height: 46, padding: '0 28px', fontSize: 14, borderRadius: 14 }}
+            >
+              <span>Save Changes</span>
+            </button>
           </div>
         </form>
       </div>

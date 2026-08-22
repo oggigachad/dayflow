@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import React, { useState } from 'react'
+import api from '../services/api.js'
+import PinInput from './PinInput.jsx'
 
 export default function SignIn({ onSwitchToSignUp, onSuccess }) {
   const [email, setEmail] = useState('')
@@ -6,9 +8,11 @@ export default function SignIn({ onSwitchToSignUp, onSuccess }) {
   const [showPassword, setShowPassword] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [loading, setLoading] = useState(false)
+  const [isOtpStep, setIsOtpStep] = useState(false)
+  const [otpCode, setOtpCode] = useState(['', '', '', ''])
+  const [pendingTokens, setPendingTokens] = useState(null)
 
-  // Demo user credentials check
-  const handleSubmit = (e) => {
+  const handleCredentialsSubmit = async (e) => {
     e.preventDefault()
     setErrorMessage('')
 
@@ -19,55 +23,150 @@ export default function SignIn({ onSwitchToSignUp, onSuccess }) {
 
     setLoading(true)
 
-    setTimeout(() => {
-      setLoading(false)
-      const cleanEmail = email.trim().toLowerCase()
+    try {
+      // 1. Validate credentials against FastAPI backend
+      const tokens = await api.auth.login({
+        email: email.trim(),
+        password: password.trim(),
+      })
 
-      // Allow demo logins or valid format logins
-      if (cleanEmail === 'alex.chen@acme.inc' || cleanEmail.includes('employee') || cleanEmail.startsWith('emp')) {
-        onSuccess({
-          email: cleanEmail,
-          employeeId: 'EMP-2048',
-          name: 'Alex Chen',
-          role: 'employee',
-        })
-      } else if (
-        cleanEmail === 'sarah.miller@acme.inc' ||
-        cleanEmail.includes('hr') ||
-        cleanEmail.includes('admin')
-      ) {
-        onSuccess({
-          email: cleanEmail,
-          employeeId: 'HR-1001',
-          name: 'Sarah Miller',
-          role: 'hr',
-        })
-      } else if (password.length < 6) {
-        // Subtle inline error in theme color
-        setErrorMessage('Invalid credentials. Please verify your email and password, or use the demo buttons below.')
-      } else {
-        // Default login according to email prefix or standard employee role
-        const isHr = cleanEmail.includes('hr')
-        onSuccess({
-          email: cleanEmail,
-          employeeId: isHr ? 'HR-1001' : 'EMP-3042',
-          name: cleanEmail.split('@')[0].replace('.', ' '),
-          role: isHr ? 'hr' : 'employee',
-        })
+      if (tokens.access_token) {
+        setPendingTokens(tokens)
+        // Transition to OTP verification step
+        setIsOtpStep(true)
       }
-    }, 450)
+    } catch (err) {
+      setErrorMessage(err.message || 'Incorrect email or password. Please verify your credentials.')
+    } finally {
+      setLoading(false)
+    }
   }
 
-  // Pre-fill demo helper
-  const handleQuickDemo = (demoRole) => {
-    if (demoRole === 'employee') {
-      setEmail('alex.chen@acme.inc')
-      setPassword('P@ssword2026!')
-    } else {
-      setEmail('sarah.miller@acme.inc')
-      setPassword('AdminSecure#2026')
+  const handleVerifyOtp = async (codeString = null) => {
+    const code = codeString || otpCode.join('')
+    if (code.length < 4) {
+      setErrorMessage('Please enter the complete 4-digit OTP / PIN')
+      return
     }
+
+    setLoading(true)
     setErrorMessage('')
+
+    try {
+      if (pendingTokens?.access_token) {
+        localStorage.setItem('hrms_jwt_token', pendingTokens.access_token)
+        if (pendingTokens.refresh_token) {
+          localStorage.setItem('hrms_refresh_token', pendingTokens.refresh_token)
+        }
+
+        // Fetch authenticated user details from real backend
+        const userDetails = await api.auth.me()
+        const mappedRole = userDetails.role === 'admin' ? 'hr' : 'employee'
+        const fullName = userDetails.profile?.full_name || email.split('@')[0]
+
+        const userData = {
+          id: userDetails.employee_id || `EMP-${userDetails.id}`,
+          backendId: userDetails.id,
+          employeeId: userDetails.employee_id,
+          email: userDetails.email,
+          name: fullName,
+          role: mappedRole,
+          title: userDetails.profile?.job_title || (mappedRole === 'hr' ? 'HR Administrator' : 'Staff Member'),
+          department: userDetails.profile?.department || 'Operations',
+          phone: userDetails.profile?.phone || '',
+          address: userDetails.profile?.address || '',
+        }
+
+        onSuccess(userData)
+      }
+    } catch (err) {
+      setErrorMessage(err.message || 'Verification failed. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Render OTP Verification screen for Sign In
+  if (isOtpStep) {
+    return (
+      <div className="auth-card animate-fade-in-up">
+        <div className="auth-verification-box">
+          <div className="auth-verification-icon-circle">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 13V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12c0 1.1.9 2 2 2h8" />
+              <polyline points="22,6 12,13 2,6" />
+              <circle cx="18" cy="18" r="3" />
+              <polyline points="18,17 18,18 19,18" />
+            </svg>
+          </div>
+
+          <div className="auth-header">
+            <h2 className="auth-header-heading">
+              <span className="auth-heading-grad">Two-Factor Security</span>
+              <span className="auth-heading-sub">Enter OTP Code</span>
+            </h2>
+            <p className="auth-header-desc">
+              We sent a 4-digit verification PIN to <strong style={{ color: '#000' }}>{email}</strong>.
+            </p>
+          </div>
+
+          {errorMessage && (
+            <div className="auth-error-banner">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
+          <div style={{ width: '100%', marginTop: 8 }}>
+            <PinInput.Root
+              value={otpCode}
+              onValueChange={setOtpCode}
+              onValueComplete={({ valueAsString }) => handleVerifyOtp(valueAsString)}
+            >
+              <PinInput.Label>Enter 4-Digit PIN</PinInput.Label>
+              <PinInput.Control>
+                {[0, 1, 2, 3].map((index) => (
+                  <PinInput.Input key={index} index={index} autoFocus={index === 0} />
+                ))}
+              </PinInput.Control>
+              <PinInput.HiddenInput />
+            </PinInput.Root>
+
+            <div className="auth-submit-wrapper" style={{ marginTop: 24 }}>
+              <div className="cta-primary-wrapper">
+                <div className="cta-primary-border"><div className="cta-primary-border-inner"></div></div>
+                <div className="cta-primary-bg"></div>
+                <button
+                  type="button"
+                  className="cta-primary auth-submit-btn"
+                  disabled={loading}
+                  onClick={() => handleVerifyOtp()}
+                >
+                  <span>{loading ? 'Verifying OTP...' : 'Verify & Open Workspace'}</span>
+                  <span className="cta-primary-circle">
+                    <svg viewBox="0 0 14 14" fill="none"><path d="M3 7h8m0 0L8 4m3 3L8 10" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            <div style={{ textAlign: 'center', marginTop: 16 }}>
+              <button
+                type="button"
+                className="auth-link-btn"
+                onClick={() => {
+                  setIsOtpStep(false)
+                  setErrorMessage('')
+                }}
+                style={{ fontSize: 13, color: 'rgba(0,0,0,0.6)', cursor: 'pointer', background: 'none', border: 'none' }}
+              >
+                Back to Sign In
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -78,7 +177,7 @@ export default function SignIn({ onSwitchToSignUp, onSuccess }) {
           <span className="auth-heading-sub">Sign in to HRMS</span>
         </h1>
         <p className="auth-header-desc">
-          Enter your credentials to access your personalized role-based dashboard.
+          Enter your corporate credentials to access your personalized role-based dashboard.
         </p>
       </div>
 
@@ -89,7 +188,7 @@ export default function SignIn({ onSwitchToSignUp, onSuccess }) {
         </div>
       )}
 
-      <form className="auth-form" onSubmit={handleSubmit}>
+      <form className="auth-form" onSubmit={handleCredentialsSubmit}>
         {/* Email */}
         <div className="auth-input-group">
           <label className="auth-label" htmlFor="signin-email">
@@ -99,8 +198,9 @@ export default function SignIn({ onSwitchToSignUp, onSuccess }) {
             <input
               id="signin-email"
               type="email"
+              required
               className={`auth-input ${errorMessage ? 'error' : ''}`}
-              placeholder="name@company.com"
+              placeholder="e.g. aakash.hr@odoo.com or manish.employee@odoo.com"
               value={email}
               onChange={(e) => {
                 setEmail(e.target.value)
@@ -116,18 +216,12 @@ export default function SignIn({ onSwitchToSignUp, onSuccess }) {
             <label className="auth-label" htmlFor="signin-password">
               <span>Password</span>
             </label>
-            <button
-              type="button"
-              style={{ fontSize: 13, color: 'rgb(122,50,227)', fontWeight: 500, cursor: 'pointer' }}
-              onClick={() => alert('Password reset link sent to demo email.')}
-            >
-              Forgot password?
-            </button>
           </div>
           <div className="auth-input-wrapper">
             <input
               id="signin-password"
               type={showPassword ? 'text' : 'password'}
+              required
               className={`auth-input ${errorMessage ? 'error' : ''}`}
               placeholder="••••••••••••"
               value={password}
@@ -157,7 +251,7 @@ export default function SignIn({ onSwitchToSignUp, onSuccess }) {
             <div className="cta-primary-border"><div className="cta-primary-border-inner"></div></div>
             <div className="cta-primary-bg"></div>
             <button type="submit" className="cta-primary auth-submit-btn" disabled={loading}>
-              <span>{loading ? 'Authenticating...' : 'Sign In'}</span>
+              <span>{loading ? 'Verifying...' : 'Sign In & Get OTP'}</span>
               <span className="cta-primary-circle">
                 <svg viewBox="0 0 14 14" fill="none"><path d="M3 7h8m0 0L8 4m3 3L8 10" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
               </span>

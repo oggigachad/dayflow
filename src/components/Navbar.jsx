@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 
-export default function Navbar({ onOpenAuth }) {
+export default function Navbar({ onOpenAuth, currentUser, onNavigatePortal }) {
   const [scrolled, setScrolled] = useState(false)
 
   useEffect(() => {
@@ -16,7 +16,7 @@ export default function Navbar({ onOpenAuth }) {
         style={{
           width: '100%',
           maxWidth: 1440,
-          background: scrolled ? 'rgba(255,255,255,0.88)' : 'transparent',
+          background: scrolled ? 'rgba(255,255,255,0.92)' : 'transparent',
           backdropFilter: scrolled ? 'blur(16px)' : 'none',
           padding: scrolled ? '12px 28px' : '0',
           borderRadius: scrolled ? 24 : 0,
@@ -43,9 +43,10 @@ export default function Navbar({ onOpenAuth }) {
               boxShadow: 'none',
             }}
           />
-          {/* Animated HRMS Brand */}
+          {/* Executive HRMS Brand Text */}
           <span className="navbar-brand hrms-brand-animated">HRMS</span>
         </div>
+
         <div className="navbar-links">
           <a href="#features">Features</a>
           <a href="#scenarios">How it works</a>
@@ -53,14 +54,36 @@ export default function Navbar({ onOpenAuth }) {
           <a href="#pricing">Pricing</a>
           <a href="#faq">FAQ</a>
         </div>
+
         <div className="navbar-actions">
-          <button className="navbar-btn" aria-label="Search">
-            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
-          </button>
-          <button className="navbar-btn" aria-label="Theme">
-            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
-          </button>
-          <button className="navbar-signin" onClick={() => onOpenAuth && onOpenAuth('signin')}>Sign in</button>
+          {currentUser ? (
+            <button
+              className="navbar-signin"
+              onClick={() => onNavigatePortal && onNavigatePortal(currentUser.role === 'hr' ? 'admin' : 'employee')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                background: 'linear-gradient(135deg, rgb(115,34,237) 0%, rgb(99,30,200) 100%)',
+                color: '#fff',
+                fontWeight: 600,
+                boxShadow: '0 4px 14px rgba(115,34,237,0.35)',
+              }}
+            >
+              <span
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: '#10b981',
+                  boxShadow: '0 0 8px #10b981',
+                }}
+              />
+              <span>Open {currentUser.role === 'hr' ? 'Admin Portal' : 'My Workspace'}</span>
+            </button>
+          ) : (
+            <button className="navbar-signin" onClick={() => onOpenAuth && onOpenAuth('signin')}>Sign in</button>
+          )}
         </div>
       </nav>
     </div>

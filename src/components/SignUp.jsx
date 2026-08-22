@@ -1,6 +1,9 @@
-import { useState } from 'react'
+import React, { useState } from 'react'
+import api from '../services/api.js'
+import PinInput from './PinInput.jsx'
 
 export default function SignUp({ onSwitchToSignIn, onSuccess }) {
+  const [fullName, setFullName] = useState('')
   const [employeeId, setEmployeeId] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -10,33 +13,41 @@ export default function SignUp({ onSwitchToSignIn, onSuccess }) {
   const [isVerificationStep, setIsVerificationStep] = useState(false)
   const [verificationCode, setVerificationCode] = useState(['', '', '', ''])
   const [errorMessage, setErrorMessage] = useState('')
+  const [loading, setLoading] = useState(false)
 
-  // Password validation rules
+  // Password rules mirror the server's (backend/app/schemas.py::_validate_password):
+  // 8+ chars with at least one letter and one digit. A special character is
+  // encouraged but not required — requiring it here rejected passwords the API
+  // would have accepted.
   const hasMinLength = password.length >= 8
-  const hasUppercase = /[A-Z]/.test(password)
-  const hasLowercase = /[a-z]/.test(password)
+  const hasLetter = /[A-Za-z]/.test(password)
   const hasNumber = /[0-9]/.test(password)
-  const hasSpecial = /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password)
-  const isPasswordValid = hasMinLength && hasUppercase && hasLowercase && hasNumber && hasSpecial
+  const hasSpecial = /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]/.test(password)
+  const isPasswordValid = hasMinLength && hasLetter && hasNumber
 
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-  const isEmpIdValid = employeeId.trim().length >= 3
+  const isEmpIdValid = employeeId.trim().length >= 2
+  const isNameValid = fullName.trim().length >= 2
 
   const handleSubmit = (e) => {
     e.preventDefault()
     setSubmitted(true)
     setErrorMessage('')
 
+    if (!isNameValid) {
+      setErrorMessage('Please enter your full legal name')
+      return
+    }
     if (!isEmpIdValid) {
-      setErrorMessage('Please enter a valid Employee ID (e.g. EMP-1042)')
+      setErrorMessage('Please enter a valid Employee ID (e.g. EMP-1042 or ADM-001)')
       return
     }
     if (!isEmailValid) {
-      setErrorMessage('Please enter a valid corporate email address')
+      setErrorMessage('Please enter a valid corporate email (e.g. manish.employee@odoo.com or aakash.hr@odoo.com)')
       return
     }
     if (!isPasswordValid) {
-      setErrorMessage('Please meet all security requirements for your password')
+      setErrorMessage('Password must be at least 8 characters and contain both letters and numbers')
       return
     }
 
@@ -44,52 +55,57 @@ export default function SignUp({ onSwitchToSignIn, onSuccess }) {
     setIsVerificationStep(true)
   }
 
-  const handleVerifyCodeChange = (index, value) => {
-    if (value.length > 1) value = value.slice(-1)
-    const newCode = [...verificationCode]
-    newCode[index] = value
-    setVerificationCode(newCode)
-
-    // Auto-focus next input
-    if (value && index < 3) {
-      const nextInput = document.getElementById(`code-input-${index + 1}`)
-      if (nextInput) nextInput.focus()
-    }
-  }
-
-  const handleCompleteVerification = (e) => {
-    e.preventDefault()
-    const enteredCode = verificationCode.join('')
+  const handleCompleteVerification = async (codeString = null) => {
+    const enteredCode = codeString || verificationCode.join('')
     if (enteredCode.length < 4) {
-      setErrorMessage('Please enter the complete 4-digit verification code')
+      setErrorMessage('Please enter the complete 4-digit verification PIN')
       return
     }
 
-    // Success -> pass user info
-    if (onSuccess) {
-      onSuccess({
-        employeeId,
-        email,
-        role,
-      })
-    }
-  }
-
-  // Pre-fill demo helper
-  const handleQuickDemo = (demoRole) => {
-    if (demoRole === 'employee') {
-      setEmployeeId('EMP-2048')
-      setEmail('alex.chen@acme.inc')
-      setPassword('P@ssword2026!')
-      setRole('employee')
-    } else {
-      setEmployeeId('HR-1001')
-      setEmail('sarah.miller@acme.inc')
-      setPassword('AdminSecure#2026')
-      setRole('hr')
-    }
-    setSubmitted(false)
+    setLoading(true)
     setErrorMessage('')
+
+    try {
+      // 1. Create real user in PostgreSQL via FastAPI
+      const tokens = await api.auth.signup({
+        employee_id: employeeId.trim(),
+        email: email.trim(),
+        password: password.trim(),
+        role: role === 'hr' ? 'admin' : 'employee',
+        full_name: fullName.trim(),
+      })
+
+      if (tokens.access_token) {
+        localStorage.setItem('hrms_jwt_token', tokens.access_token)
+        if (tokens.refresh_token) {
+          localStorage.setItem('hrms_refresh_token', tokens.refresh_token)
+        }
+
+        const userDetails = await api.auth.me()
+        const mappedRole = userDetails.role === 'admin' ? 'hr' : 'employee'
+
+        const userData = {
+          id: userDetails.employee_id || `EMP-${userDetails.id}`,
+          backendId: userDetails.id,
+          employeeId: userDetails.employee_id,
+          email: userDetails.email,
+          name: userDetails.profile?.full_name || fullName.trim(),
+          role: mappedRole,
+          title: userDetails.profile?.job_title || (mappedRole === 'hr' ? 'HR Administrator' : 'Staff Member'),
+          department: userDetails.profile?.department || 'Operations',
+          phone: userDetails.profile?.phone || '',
+          address: userDetails.profile?.address || '',
+        }
+
+        if (onSuccess) {
+          onSuccess(userData)
+        }
+      }
+    } catch (err) {
+      setErrorMessage(err.message || 'An error occurred during registration. Please check if this email/ID is already registered.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   if (isVerificationStep) {
@@ -122,60 +138,53 @@ export default function SignUp({ onSwitchToSignIn, onSuccess }) {
             </div>
           )}
 
-          <form onSubmit={handleCompleteVerification} style={{ width: '100%' }}>
-            <div className="auth-verification-code-grid">
-              {[0, 1, 2, 3].map((idx) => (
-                <input
-                  key={idx}
-                  id={`code-input-${idx}`}
-                  type="text"
-                  maxLength={1}
-                  value={verificationCode[idx]}
-                  onChange={(e) => handleVerifyCodeChange(idx, e.target.value)}
-                  className="auth-verification-code-input"
-                  autoFocus={idx === 0}
-                  pattern="[0-9]*"
-                  inputMode="numeric"
-                />
-              ))}
-            </div>
+          <div style={{ width: '100%', marginTop: 8 }}>
+            <PinInput.Root
+              value={verificationCode}
+              onValueChange={setVerificationCode}
+              onValueComplete={({ valueAsString }) => handleCompleteVerification(valueAsString)}
+            >
+              <PinInput.Label>Enter PIN</PinInput.Label>
+              <PinInput.Control>
+                {[0, 1, 2, 3].map((index) => (
+                  <PinInput.Input key={index} index={index} autoFocus={index === 0} />
+                ))}
+              </PinInput.Control>
+              <PinInput.HiddenInput />
+            </PinInput.Root>
 
             <div className="auth-submit-wrapper" style={{ marginTop: 24 }}>
               <div className="cta-primary-wrapper">
                 <div className="cta-primary-border"><div className="cta-primary-border-inner"></div></div>
                 <div className="cta-primary-bg"></div>
-                <button type="submit" className="cta-primary auth-submit-btn">
-                  <span>Activate & Access Dashboard</span>
+                <button
+                  type="button"
+                  className="cta-primary auth-submit-btn"
+                  disabled={loading}
+                  onClick={() => handleCompleteVerification()}
+                >
+                  <span>{loading ? 'Creating Account...' : 'Complete & Launch Workspace'}</span>
                   <span className="cta-primary-circle">
                     <svg viewBox="0 0 14 14" fill="none"><path d="M3 7h8m0 0L8 4m3 3L8 10" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                   </span>
                 </button>
               </div>
             </div>
-          </form>
 
-          <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.55)', display: 'flex', gap: 6, alignItems: 'center' }}>
-            <span>Didn't receive code?</span>
-            <button
-              type="button"
-              onClick={() => {
-                setVerificationCode(['9', '4', '2', '1'])
-                setErrorMessage('')
-              }}
-              style={{ color: 'rgb(122,50,227)', fontWeight: 600, textDecoration: 'underline' }}
-            >
-              Autofill demo code (9421)
-            </button>
+            <div style={{ textAlign: 'center', marginTop: 16 }}>
+              <button
+                type="button"
+                className="auth-link-btn"
+                onClick={() => {
+                  setIsVerificationStep(false)
+                  setErrorMessage('')
+                }}
+                style={{ fontSize: 13, color: 'rgba(0,0,0,0.6)', cursor: 'pointer', background: 'none', border: 'none' }}
+              >
+                Back to Edit Information
+              </button>
+            </div>
           </div>
-
-          <button
-            type="button"
-            onClick={() => setIsVerificationStep(false)}
-            className="cta-secondary"
-            style={{ height: 44, padding: '0 20px', fontSize: 14, borderRadius: 12 }}
-          >
-            ← Back to details
-          </button>
         </div>
       </div>
     )
@@ -185,11 +194,11 @@ export default function SignUp({ onSwitchToSignIn, onSuccess }) {
     <div className="auth-card animate-fade-in-up">
       <div className="auth-header">
         <h1 className="auth-header-heading">
-          <span className="auth-heading-grad">Create account</span>
-          <span className="auth-heading-sub">Join your workspace</span>
+          <span className="auth-heading-grad">Get started</span>
+          <span className="auth-heading-sub">Create your HRMS account</span>
         </h1>
         <p className="auth-header-desc">
-          Sign up with your organization credentials to access self-service tools and workflows.
+          Sign up to access employee self-service tools or admin HR management portal.
         </p>
       </div>
 
@@ -200,37 +209,52 @@ export default function SignUp({ onSwitchToSignIn, onSuccess }) {
         </div>
       )}
 
-      <form className="auth-form" onSubmit={handleSubmit}>
-        {/* Role Toggle (Segmented) */}
-        <div className="auth-role-toggle-container">
-          <label className="auth-label">
-            <span>Account Role</span>
-            <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: 400 }}>
-              {role === 'employee' ? 'Self-service access' : 'Full organization control'}
-            </span>
+      {/* Top Navbar-Style Role Switcher */}
+      <div className="auth-role-nav-switch">
+        <button
+          type="button"
+          className={`auth-role-nav-tab ${role === 'employee' ? 'active' : ''}`}
+          onClick={() => setRole('employee')}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
+          </svg>
+          <span>Employee</span>
+        </button>
+
+        <button
+          type="button"
+          className={`auth-role-nav-tab ${role === 'hr' ? 'active' : ''}`}
+          onClick={() => setRole('hr')}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+          <span>Admin / HR</span>
+        </button>
+      </div>
+
+      <form className="auth-form" onSubmit={handleSubmit} style={{ marginTop: 12 }}>
+        {/* Full Name */}
+        <div className="auth-input-group">
+          <label className="auth-label" htmlFor="signup-name">
+            <span>Full Name</span>
           </label>
-          <div className="auth-role-toggle">
-            <button
-              type="button"
-              className={`auth-role-btn ${role === 'employee' ? 'active' : ''}`}
-              onClick={() => setRole('employee')}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="8" r="4"/>
-                <path d="M4 22c0-4 4-7 8-7s8 3 8 7"/>
-              </svg>
-              <span>Employee</span>
-            </button>
-            <button
-              type="button"
-              className={`auth-role-btn ${role === 'hr' ? 'active' : ''}`}
-              onClick={() => setRole('hr')}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/>
-              </svg>
-              <span>Admin / HR</span>
-            </button>
+          <div className="auth-input-wrapper">
+            <input
+              id="signup-name"
+              type="text"
+              required
+              className="auth-input"
+              placeholder={role === 'hr' ? 'Aakash Sharma' : 'Manish Kumar'}
+              value={fullName}
+              onChange={(e) => {
+                setFullName(e.target.value)
+                if (errorMessage) setErrorMessage('')
+              }}
+            />
           </div>
         </div>
 
@@ -243,18 +267,19 @@ export default function SignUp({ onSwitchToSignIn, onSuccess }) {
             <input
               id="signup-empid"
               type="text"
-              className={`auth-input ${submitted && !isEmpIdValid ? 'error' : ''}`}
-              placeholder="e.g. EMP-1042"
+              required
+              className="auth-input"
+              placeholder={role === 'hr' ? 'ADM-001' : 'EMP-1042'}
               value={employeeId}
-              onChange={(e) => setEmployeeId(e.target.value)}
+              onChange={(e) => {
+                setEmployeeId(e.target.value)
+                if (errorMessage) setErrorMessage('')
+              }}
             />
           </div>
-          {submitted && !isEmpIdValid && (
-            <span className="auth-field-error">Employee ID must be at least 3 characters.</span>
-          )}
         </div>
 
-        {/* Email Address */}
+        {/* Corporate Email */}
         <div className="auth-input-group">
           <label className="auth-label" htmlFor="signup-email">
             <span>Corporate Email</span>
@@ -263,15 +288,16 @@ export default function SignUp({ onSwitchToSignIn, onSuccess }) {
             <input
               id="signup-email"
               type="email"
-              className={`auth-input ${submitted && !isEmailValid ? 'error' : ''}`}
-              placeholder="name@company.com"
+              required
+              className="auth-input"
+              placeholder={role === 'hr' ? 'aakash.hr@odoo.com' : 'manish.employee@odoo.com'}
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value)
+                if (errorMessage) setErrorMessage('')
+              }}
             />
           </div>
-          {submitted && !isEmailValid && (
-            <span className="auth-field-error">Please provide a valid corporate email.</span>
-          )}
         </div>
 
         {/* Password */}
@@ -283,10 +309,14 @@ export default function SignUp({ onSwitchToSignIn, onSuccess }) {
             <input
               id="signup-password"
               type={showPassword ? 'text' : 'password'}
-              className={`auth-input ${submitted && !isPasswordValid ? 'error' : ''}`}
-              placeholder="••••••••••••"
+              required
+              className="auth-input"
+              placeholder="Create a strong password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value)
+                if (errorMessage) setErrorMessage('')
+              }}
             />
             <button
               type="button"
@@ -302,73 +332,20 @@ export default function SignUp({ onSwitchToSignIn, onSuccess }) {
             </button>
           </div>
 
-          {/* Real-time Password Rules Feedback */}
-          <div className="password-rules-box">
-            <div className="password-rules-header">
-              <span>Security Requirements</span>
-              <span style={{ color: isPasswordValid ? 'rgb(16, 185, 129)' : 'inherit', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                {isPasswordValid ? (
-                  <>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
-                    <span>Strong Password</span>
-                  </>
-                ) : (
-                  'Required'
-                )}
-              </span>
-            </div>
-            <div className="password-rules-grid">
-              <div className={`password-rule-item ${hasMinLength ? 'valid' : ''}`}>
-                <span className="password-rule-bullet">
-                  {hasMinLength ? (
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5"><polyline points="20 6 9 17 4 12"/></svg>
-                  ) : (
-                    <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'currentColor' }} />
-                  )}
-                </span>
-                <span>8+ characters</span>
-              </div>
-              <div className={`password-rule-item ${hasUppercase ? 'valid' : ''}`}>
-                <span className="password-rule-bullet">
-                  {hasUppercase ? (
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5"><polyline points="20 6 9 17 4 12"/></svg>
-                  ) : (
-                    <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'currentColor' }} />
-                  )}
-                </span>
-                <span>Uppercase (A-Z)</span>
-              </div>
-              <div className={`password-rule-item ${hasLowercase ? 'valid' : ''}`}>
-                <span className="password-rule-bullet">
-                  {hasLowercase ? (
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5"><polyline points="20 6 9 17 4 12"/></svg>
-                  ) : (
-                    <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'currentColor' }} />
-                  )}
-                </span>
-                <span>Lowercase (a-z)</span>
-              </div>
-              <div className={`password-rule-item ${hasNumber ? 'valid' : ''}`}>
-                <span className="password-rule-bullet">
-                  {hasNumber ? (
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5"><polyline points="20 6 9 17 4 12"/></svg>
-                  ) : (
-                    <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'currentColor' }} />
-                  )}
-                </span>
-                <span>Number (0-9)</span>
-              </div>
-              <div className={`password-rule-item ${hasSpecial ? 'valid' : ''}`} style={{ gridColumn: 'span 2' }}>
-                <span className="password-rule-bullet">
-                  {hasSpecial ? (
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5"><polyline points="20 6 9 17 4 12"/></svg>
-                  ) : (
-                    <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'currentColor' }} />
-                  )}
-                </span>
-                <span>Special symbol (!@#$%^&*)</span>
-              </div>
-            </div>
+          {/* Password requirement badges */}
+          <div style={{ display: 'flex', gap: 12, marginTop: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12, fontWeight: 500, color: hasMinLength ? '#10b981' : 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', gap: 4 }}>
+              {hasMinLength ? '✓' : '○'} 8+ chars
+            </span>
+            <span style={{ fontSize: 12, fontWeight: 500, color: hasLetter ? '#10b981' : 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', gap: 4 }}>
+              {hasLetter ? '✓' : '○'} Letters
+            </span>
+            <span style={{ fontSize: 12, fontWeight: 500, color: hasNumber ? '#10b981' : 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', gap: 4 }}>
+              {hasNumber ? '✓' : '○'} Numbers
+            </span>
+            <span style={{ fontSize: 12, fontWeight: 500, color: hasSpecial ? '#10b981' : 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', gap: 4 }}>
+              {hasSpecial ? '✓' : '○'} Special char (optional)
+            </span>
           </div>
         </div>
 
@@ -378,7 +355,7 @@ export default function SignUp({ onSwitchToSignIn, onSuccess }) {
             <div className="cta-primary-border"><div className="cta-primary-border-inner"></div></div>
             <div className="cta-primary-bg"></div>
             <button type="submit" className="cta-primary auth-submit-btn">
-              <span>Create Account</span>
+              <span>Continue to Verification</span>
               <span className="cta-primary-circle">
                 <svg viewBox="0 0 14 14" fill="none"><path d="M3 7h8m0 0L8 4m3 3L8 10" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
               </span>
@@ -389,7 +366,7 @@ export default function SignUp({ onSwitchToSignIn, onSuccess }) {
 
       {/* Switch to Sign In */}
       <div className="auth-switch-prompt">
-        <span>Already have an account?</span>
+        <span>Already registered?</span>
         <button type="button" className="auth-switch-btn" onClick={onSwitchToSignIn}>
           Sign in
         </button>

@@ -11,6 +11,7 @@ export default function AdminDashboard() {
     setSelectedEmployeeId,
     setActiveTab,
     selectedEmployeeId,
+    liveDate,
   } = useHRMS()
 
   const [searchQuery, setSearchQuery] = useState('')
@@ -19,9 +20,9 @@ export default function AdminDashboard() {
   // Filtered employees
   const filteredEmployees = employees.filter((emp) => {
     const matchesSearch =
-      emp.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      emp.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      emp.title.toLowerCase().includes(searchQuery.toLowerCase())
+      (emp.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (emp.id || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (emp.title || '').toLowerCase().includes(searchQuery.toLowerCase())
     const matchesDept = departmentFilter === 'All' || emp.department === departmentFilter
     return matchesSearch && matchesDept
   })
@@ -29,10 +30,18 @@ export default function AdminDashboard() {
   // Pending Leave Requests
   const pendingLeaves = leaveRequests.filter((l) => l.status === 'Pending')
 
-  // Attendance stats for today
-  const todayStr = new Date().toISOString().split('T')[0]
+  // Attendance stats for today — liveDate is the local calendar day the backend
+  // also stamps rows with; toISOString() would look at the UTC day and miss them.
+  const todayStr = liveDate
   const todayRecords = attendance.filter((a) => a.date === todayStr)
   const presentCount = todayRecords.filter((a) => a.status === 'Present').length
+  const uniqueDepartments = new Set(employees.map((e) => e.department).filter(Boolean)).size || 1
+
+  // Dynamic Total Monthly Payroll calculation
+  const totalMonthlyPayroll = employees.reduce((sum, emp) => {
+    const amt = emp.salary?.net || emp.salary?.basic || 0
+    return sum + Number(amt)
+  }, 0)
 
   const handleSelectEmployee = (empId) => {
     setSelectedEmployeeId(empId)
@@ -51,7 +60,9 @@ export default function AdminDashboard() {
           <span style={{ fontSize: 32, fontWeight: 700, letterSpacing: '-0.04em', color: '#000' }}>
             {employees.length} <span style={{ fontSize: 16, fontWeight: 500, color: 'rgba(0,0,0,0.5)' }}>Members</span>
           </span>
-          <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)' }}>Across 4 core departments</span>
+          <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)' }}>
+            Across {uniqueDepartments} {uniqueDepartments === 1 ? 'department' : 'departments'}
+          </span>
         </div>
 
         <div className="hrms-card" style={{ padding: 24, gap: 10 }}>
@@ -65,15 +76,17 @@ export default function AdminDashboard() {
           <span style={{ fontSize: 32, fontWeight: 700, letterSpacing: '-0.04em', color: '#000' }}>
             {presentCount} / {employees.length}
           </span>
-          <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)' }}>{Math.round((presentCount / employees.length) * 100)}% attendance logged</span>
+          <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)' }}>
+            {employees.length > 0 ? Math.round((presentCount / employees.length) * 100) : 0}% attendance logged
+          </span>
         </div>
 
         <div className="hrms-card" style={{ padding: 24, gap: 10 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.55)', fontWeight: 600 }}>Pending Leave Approvals</span>
-            <span className="hrms-pill pending">
+            <span className={`hrms-pill ${pendingLeaves.length > 0 ? 'pending' : 'approved'}`}>
               <span className="hrms-pill-dot" />
-              {pendingLeaves.length} Action Needed
+              {pendingLeaves.length > 0 ? `${pendingLeaves.length} Action Needed` : 'All Clear'}
             </span>
           </div>
           <span style={{ fontSize: 32, fontWeight: 700, letterSpacing: '-0.04em', color: '#000' }}>
@@ -91,13 +104,13 @@ export default function AdminDashboard() {
             </span>
           </div>
           <span style={{ fontSize: 32, fontWeight: 700, letterSpacing: '-0.04em', color: '#000' }}>
-            $42,000
+            ${totalMonthlyPayroll.toLocaleString()}
           </span>
           <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)' }}>Monthly aggregate disbursement</span>
         </div>
       </div>
 
-      {/* 3.2.2 Leave Approvals Panel (Pending requests surfaced prominently) */}
+      {/* 3.2.2 Leave Approvals Panel */}
       <div className="hrms-card">
         <div className="hrms-card-header">
           <div className="hrms-card-title-group">
@@ -120,37 +133,81 @@ export default function AdminDashboard() {
             style={{ height: 40, padding: '0 16px', fontSize: 13, borderRadius: 12 }}
             onClick={() => setActiveTab('leave')}
           >
-            Manage All Requests
+            <span>View All ({leaveRequests.length})</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
           </button>
         </div>
 
         {pendingLeaves.length === 0 ? (
-          <div style={{ padding: '32px 20px', textAlign: 'center', color: 'rgba(0,0,0,0.5)', background: 'rgb(254, 241, 238)', borderRadius: 16 }}>
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ margin: '0 auto 8px', opacity: 0.6 }}>
-              <polyline points="20 6 9 17 4 12" />
-            </svg>
-            <p style={{ fontWeight: 500 }}>All leave requests have been reviewed.</p>
+          <div
+            style={{
+              padding: '36px 20px',
+              textAlign: 'center',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: '50%',
+                background: 'rgba(16,185,129,0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'rgb(16,185,129)',
+              }}
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </div>
+            <strong style={{ color: '#000', fontSize: 15 }}>No pending leave requests</strong>
+            <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)' }}>All employee time-off requests are up to date.</span>
           </div>
         ) : (
-          <div className="hrms-table-container">
+          <div className="hrms-table-wrapper">
             <table className="hrms-table">
               <thead>
                 <tr>
                   <th>Employee</th>
                   <th>Leave Type</th>
-                  <th>Date Range</th>
-                  <th>Days</th>
-                  <th>Remarks</th>
-                  <th>Action</th>
+                  <th>Duration</th>
+                  <th>Reason / Remarks</th>
+                  <th>Status</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {pendingLeaves.map((req) => (
                   <tr key={req.id}>
                     <td>
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <strong style={{ color: '#000' }}>{req.employeeName}</strong>
-                        <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)' }}>{req.employeeId}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div
+                          style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: '50%',
+                            background: 'rgb(254, 241, 238)',
+                            color: 'rgb(122,50,227)',
+                            fontWeight: 700,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: 13,
+                          }}
+                        >
+                          {(req.employeeName || 'E').charAt(0)}
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <strong style={{ color: '#000', fontSize: 14 }}>{req.employeeName}</strong>
+                          <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)' }}>{req.employeeId}</span>
+                        </div>
                       </div>
                     </td>
                     <td>
@@ -160,33 +217,43 @@ export default function AdminDashboard() {
                       </span>
                     </td>
                     <td>
-                      <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.75)' }}>
-                        {req.startDate} to {req.endDate}
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ fontSize: 13, fontWeight: 500, color: '#000' }}>
+                          {req.startDate} → {req.endDate}
+                        </span>
+                        <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)' }}>
+                          {req.days} {req.days === 1 ? 'day' : 'days'}
+                        </span>
+                      </div>
+                    </td>
+                    <td>
+                      <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.7)', maxWidth: 220, display: 'inline-block' }}>
+                        {req.remarks}
                       </span>
                     </td>
                     <td>
-                      <strong style={{ color: '#000' }}>{req.days} days</strong>
-                    </td>
-                    <td style={{ maxWidth: 260 }}>
-                      <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.65)' }}>{req.remarks}</span>
+                      <span className="hrms-pill pending">
+                        <span className="hrms-pill-dot" />
+                        Pending
+                      </span>
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: 8 }}>
                         <button
                           type="button"
                           className="cta-primary"
-                          style={{ height: 36, padding: '0 14px', fontSize: 12, borderRadius: 10 }}
-                          onClick={() => handleApproveLeave(req.id, 'Approved by HR Lead')}
+                          style={{ height: 32, padding: '0 12px', fontSize: 12, borderRadius: 8 }}
+                          onClick={() => handleApproveLeave(req.id, 'Approved by HR Administrator')}
                         >
-                          <span>Approve</span>
+                          Approve
                         </button>
                         <button
                           type="button"
-                          className="hrms-btn-coral"
-                          style={{ height: 36, padding: '0 14px', fontSize: 12, borderRadius: 10 }}
-                          onClick={() => handleRejectLeave(req.id, 'Declined due to coverage constraints')}
+                          className="cta-secondary"
+                          style={{ height: 32, padding: '0 12px', fontSize: 12, borderRadius: 8 }}
+                          onClick={() => handleRejectLeave(req.id, 'Declined per business schedule')}
                         >
-                          <span>Reject</span>
+                          Reject
                         </button>
                       </div>
                     </td>
@@ -198,7 +265,7 @@ export default function AdminDashboard() {
         )}
       </div>
 
-      {/* 3.2.2 Employee Directory & Switcher Table */}
+      {/* 3.2.2 Organization Employee Directory with Switching Ability */}
       <div className="hrms-card">
         <div className="hrms-card-header">
           <div className="hrms-card-title-group">
@@ -216,160 +283,154 @@ export default function AdminDashboard() {
             </p>
           </div>
 
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-            {/* Search Input */}
-            <div style={{ position: 'relative' }}>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            <div className="auth-input-wrapper" style={{ width: 220, height: 40 }}>
               <input
                 type="text"
+                className="auth-input"
+                style={{ height: 40, fontSize: 13, paddingLeft: 34 }}
                 placeholder="Search staff, ID, title..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                style={{
-                  height: 42,
-                  padding: '0 16px 0 36px',
-                  borderRadius: 14,
-                  border: '1.5px solid rgba(0,0,0,0.12)',
-                  fontSize: 14,
-                  outline: 'none',
-                  background: '#fff',
-                }}
               />
               <svg
                 width="16"
                 height="16"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke="rgba(0,0,0,0.4)"
+                stroke="currentColor"
                 strokeWidth="2"
-                style={{ position: 'absolute', left: 12, top: 13 }}
+                style={{ position: 'absolute', left: 12, color: 'rgba(0,0,0,0.4)' }}
               >
                 <circle cx="11" cy="11" r="8" />
                 <line x1="21" y1="21" x2="16.65" y2="16.65" />
               </svg>
             </div>
 
-            {/* Department Filter */}
             <select
               value={departmentFilter}
               onChange={(e) => setDepartmentFilter(e.target.value)}
-              style={{
-                height: 42,
-                padding: '0 16px',
-                borderRadius: 14,
-                border: '1.5px solid rgba(0,0,0,0.12)',
-                fontSize: 14,
-                outline: 'none',
-                background: '#fff',
-                cursor: 'pointer',
-              }}
+              className="auth-input"
+              style={{ width: 160, height: 40, fontSize: 13, borderRadius: 12 }}
             >
               <option value="All">All Departments</option>
               <option value="Engineering">Engineering</option>
-              <option value="Design">Design</option>
               <option value="Human Resources">Human Resources</option>
+              <option value="Design">Design</option>
               <option value="DevOps">DevOps</option>
+              <option value="Operations">Operations</option>
             </select>
           </div>
         </div>
 
-        <div className="hrms-table-container">
-          <table className="hrms-table">
-            <thead>
-              <tr>
-                <th>Employee Name & ID</th>
-                <th>Role & Title</th>
-                <th>Department</th>
-                <th>Email / Contact</th>
-                <th>Status</th>
-                <th>Monthly CTC</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredEmployees.map((emp) => {
-                const isSelected = selectedEmployeeId === emp.id
-                return (
-                  <tr
-                    key={emp.id}
-                    className="clickable"
-                    onClick={() => handleSelectEmployee(emp.id)}
-                    style={{
-                      background: isSelected ? 'rgba(122,50,227,0.06)' : undefined,
-                    }}
-                  >
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <div
-                          style={{
-                            width: 36,
-                            height: 36,
-                            borderRadius: 12,
-                            background: emp.role === 'hr'
-                              ? 'linear-gradient(135deg, rgb(253,135,61) 0%, rgb(236,72,153) 100%)'
-                              : 'linear-gradient(135deg, rgb(122,50,227) 0%, rgb(99,30,200) 100%)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: '#fff',
-                            fontWeight: 700,
-                            fontSize: 14,
+        {filteredEmployees.length === 0 ? (
+          <div style={{ padding: '40px 20px', textAlign: 'center', color: 'rgba(0,0,0,0.5)' }}>
+            No registered employees found. New employee registrations will appear here automatically in real time.
+          </div>
+        ) : (
+          <div className="hrms-table-wrapper">
+            <table className="hrms-table">
+              <thead>
+                <tr>
+                  <th>Employee Name & ID</th>
+                  <th>Role & Title</th>
+                  <th>Department</th>
+                  <th>Email / Contact</th>
+                  <th>Status</th>
+                  <th>Monthly CTC</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredEmployees.map((emp) => {
+                  const isSelected = selectedEmployeeId === emp.id
+                  const monthlySalary = emp.salary?.net || emp.salary?.basic || 0
+                  return (
+                    <tr
+                      key={emp.id}
+                      className="clickable"
+                      onClick={() => handleSelectEmployee(emp.id)}
+                      style={{
+                        background: isSelected ? 'rgba(122,50,227,0.06)' : undefined,
+                      }}
+                    >
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <div
+                            style={{
+                              width: 36,
+                              height: 36,
+                              borderRadius: 12,
+                              background: emp.role === 'hr'
+                                ? 'linear-gradient(135deg, rgb(253,135,61) 0%, rgb(236,72,153) 100%)'
+                                : 'linear-gradient(135deg, rgb(122,50,227) 0%, rgb(99,30,200) 100%)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: '#fff',
+                              fontWeight: 700,
+                              fontSize: 14,
+                            }}
+                          >
+                            {emp.avatar || (emp.name || 'U').charAt(0)}
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <strong style={{ color: '#000', fontSize: 15 }}>{emp.name}</strong>
+                            <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)' }}>{emp.id}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ fontWeight: 500, color: '#000' }}>{emp.title}</span>
+                          <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', textTransform: 'capitalize' }}>
+                            {emp.role} Access
+                          </span>
+                        </div>
+                      </td>
+                      <td>
+                        <span style={{ fontSize: 14, color: 'rgba(0,0,0,0.75)' }}>{emp.department || 'Operations'}</span>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ fontSize: 13, color: '#000' }}>{emp.email}</span>
+                          <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)' }}>{emp.phone || '—'}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <span className="hrms-pill present">
+                          <span className="hrms-pill-dot" />
+                          {emp.status || 'Active'}
+                        </span>
+                      </td>
+                      <td>
+                        <strong style={{ color: '#000' }}>
+                          ${monthlySalary.toLocaleString()}
+                        </strong>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="cta-secondary"
+                          style={{ height: 34, padding: '0 14px', fontSize: 12, borderRadius: 10 }}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleSelectEmployee(emp.id)
                           }}
                         >
-                          {emp.avatar}
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          <strong style={{ color: '#000', fontSize: 15 }}>{emp.name}</strong>
-                          <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)' }}>{emp.id}</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ fontWeight: 500, color: '#000' }}>{emp.title}</span>
-                        <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', textTransform: 'capitalize' }}>
-                          {emp.role} Access
-                        </span>
-                      </div>
-                    </td>
-                    <td>
-                      <span style={{ fontSize: 14, color: 'rgba(0,0,0,0.75)' }}>{emp.department}</span>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ fontSize: 13, color: '#000' }}>{emp.email}</span>
-                        <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)' }}>{emp.phone}</span>
-                      </div>
-                    </td>
-                    <td>
-                      <span className="hrms-pill present">
-                        <span className="hrms-pill-dot" />
-                        {emp.status}
-                      </span>
-                    </td>
-                    <td>
-                      <strong style={{ color: '#000' }}>
-                        ${emp.salary?.net?.toLocaleString() || '8,000'}
-                      </strong>
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        className="cta-secondary"
-                        style={{ height: 34, padding: '0 14px', fontSize: 12, borderRadius: 10 }}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleSelectEmployee(emp.id)
-                        }}
-                      >
-                        View & Edit Profile →
-                      </button>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+                          <span>View & Edit Profile</span>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M5 12h14M12 5l7 7-7 7" />
+                          </svg>
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   )

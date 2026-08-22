@@ -1,6 +1,7 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useHRMS } from '../../context/HRMSContext.jsx'
 import ProfileEdit from './ProfileEdit.jsx'
+import ProfileDocuments from './ProfileDocuments.jsx'
 
 export default function ProfileView() {
   const {
@@ -12,11 +13,13 @@ export default function ProfileView() {
     setSelectedEmployeeId,
   } = useHRMS()
 
-  const isAdmin = currentUser.role === 'hr'
+  const [activeProfileTab, setActiveProfileTab] = useState('overview') // 'overview' | 'documents'
+  const isHrAdmin = currentUser.role === 'hr'
   const isViewingOther = selectedEmployeeId && selectedEmployeeId !== currentUser.id
+  const isHrSelfProfile = !isViewingOther && activeEmployee.role === 'hr'
 
   if (isEditingProfile) {
-    return <ProfileEdit onCancel={() => setIsEditingProfile(false)} />
+    return <ProfileEdit onCancel={() => setIsEditingProfile(false)} isHrSelf={isHrSelfProfile} />
   }
 
   return (
@@ -42,29 +45,33 @@ export default function ProfileView() {
                 boxShadow: '0 8px 24px rgba(122,50,227,0.25)',
               }}
             >
-              {activeEmployee.avatar || activeEmployee.name.charAt(0)}
+              {activeEmployee.avatar || (activeEmployee.name || 'U').charAt(0)}
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <h1 style={{ fontSize: 28, fontWeight: 600, letterSpacing: '-0.03em', color: '#000' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <h1 style={{ fontSize: 28, fontWeight: 600, letterSpacing: '-0.03em', color: '#000', margin: 0 }}>
                   {activeEmployee.name}
                 </h1>
-                <span className="hrms-pill present">
+                <span className={`hrms-pill ${(activeEmployee.status || 'Active').toLowerCase().replace(' ', '-')}`}>
                   <span className="hrms-pill-dot" />
-                  {activeEmployee.status}
+                  {activeEmployee.status || 'Active'}
                 </span>
                 <span className="hrms-pill pending" style={{ textTransform: 'uppercase', fontSize: 11 }}>
-                  {activeEmployee.role}
+                  {activeEmployee.role === 'hr' ? 'Admin / HR' : 'Employee'}
                 </span>
               </div>
-              <p style={{ fontSize: 15, color: 'rgba(0,0,0,0.6)' }}>
-                {activeEmployee.title} · {activeEmployee.department} · ID: <strong>{activeEmployee.id}</strong>
+              <p style={{ fontSize: 15, color: 'rgba(0,0,0,0.6)', margin: 0 }}>
+                {isHrSelfProfile ? (
+                  <>HR Administrator · Location: <strong>{activeEmployee.workLocation || 'Headquarters'}</strong> · ID: <strong>{activeEmployee.id}</strong></>
+                ) : (
+                  <>{activeEmployee.title || 'Staff Member'} · {activeEmployee.department || 'Operations'} · ID: <strong>{activeEmployee.id}</strong></>
+                )}
               </p>
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             {isViewingOther && (
               <button
                 type="button"
@@ -91,210 +98,185 @@ export default function ProfileView() {
             </button>
           </div>
         </div>
+
+        {/* Sub Navigation: Overview vs Documents */}
+        <div style={{ display: 'flex', gap: 8, marginTop: 24, borderTop: '1px solid rgba(0,0,0,0.06)', paddingTop: 16 }}>
+          <button
+            type="button"
+            className={`auth-role-nav-tab ${activeProfileTab === 'overview' ? 'active' : ''}`}
+            onClick={() => setActiveProfileTab('overview')}
+            style={{ width: 'auto', padding: '8px 20px' }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+              <circle cx="12" cy="7" r="4" />
+            </svg>
+            <span>Profile Overview</span>
+          </button>
+
+          <button
+            type="button"
+            className={`auth-role-nav-tab ${activeProfileTab === 'documents' ? 'active' : ''}`}
+            onClick={() => setActiveProfileTab('documents')}
+            style={{ width: 'auto', padding: '8px 20px' }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+            </svg>
+            <span>Personnel Documents</span>
+          </button>
+        </div>
       </div>
 
-      {/* Profile Details Sections Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 24 }}>
-        {/* Section 1: Personal Details */}
-        <div className="hrms-card" style={{ gap: 18 }}>
-          <div className="hrms-card-header" style={{ paddingBottom: 14, borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
-            <h3 className="hrms-card-title" style={{ fontSize: 19 }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgb(122,50,227)" strokeWidth="2.2">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                <circle cx="12" cy="7" r="4" />
-              </svg>
-              Personal Details
-            </h3>
-          </div>
+      {activeProfileTab === 'documents' ? (
+        <ProfileDocuments employee={activeEmployee} isHr={isHrAdmin} />
+      ) : isHrSelfProfile ? (
+        /* Reduced Field Set for HR/Admin Self Profile */
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 24 }}>
+          <div className="hrms-card" style={{ gap: 18 }}>
+            <div className="hrms-card-header" style={{ paddingBottom: 14, borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+              <h3 className="hrms-card-title" style={{ fontSize: 19 }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgb(122,50,227)" strokeWidth="2.2">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                </svg>
+                Administrator Account Details
+              </h3>
+            </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            <div>
-              <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: 500 }}>Full Legal Name</span>
-              <p style={{ fontSize: 15, fontWeight: 600, color: '#000', marginTop: 2 }}>{activeEmployee.name}</p>
-            </div>
-            <div>
-              <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: 500 }}>Corporate Email</span>
-              <p style={{ fontSize: 15, fontWeight: 600, color: '#000', marginTop: 2 }}>{activeEmployee.email}</p>
-            </div>
-            <div>
-              <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: 500 }}>Direct Phone</span>
-              <p style={{ fontSize: 15, fontWeight: 600, color: '#000', marginTop: 2 }}>{activeEmployee.phone}</p>
-            </div>
-            <div>
-              <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: 500 }}>Emergency Contact</span>
-              <p style={{ fontSize: 15, fontWeight: 600, color: '#000', marginTop: 2 }}>{activeEmployee.emergencyContact || '--'}</p>
-            </div>
-            <div style={{ gridColumn: 'span 2' }}>
-              <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: 500 }}>Residential Address</span>
-              <p style={{ fontSize: 15, fontWeight: 600, color: '#000', marginTop: 2 }}>{activeEmployee.address}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Section 2: Job Details */}
-        <div className="hrms-card" style={{ gap: 18 }}>
-          <div className="hrms-card-header" style={{ paddingBottom: 14, borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
-            <h3 className="hrms-card-title" style={{ fontSize: 19 }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgb(122,50,227)" strokeWidth="2.2">
-                <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
-                <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
-              </svg>
-              Job & Organization Details
-            </h3>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            <div>
-              <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: 500 }}>Job Title</span>
-              <p style={{ fontSize: 15, fontWeight: 600, color: '#000', marginTop: 2 }}>{activeEmployee.title}</p>
-            </div>
-            <div>
-              <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: 500 }}>Department</span>
-              <p style={{ fontSize: 15, fontWeight: 600, color: '#000', marginTop: 2 }}>{activeEmployee.department}</p>
-            </div>
-            <div>
-              <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: 500 }}>Reporting Manager</span>
-              <p style={{ fontSize: 15, fontWeight: 600, color: '#000', marginTop: 2 }}>{activeEmployee.manager}</p>
-            </div>
-            <div>
-              <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: 500 }}>Date of Joining</span>
-              <p style={{ fontSize: 15, fontWeight: 600, color: '#000', marginTop: 2 }}>{activeEmployee.joiningDate}</p>
-            </div>
-            <div>
-              <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: 500 }}>Employment Type</span>
-              <p style={{ fontSize: 15, fontWeight: 600, color: '#000', marginTop: 2 }}>Full-Time Permanent</p>
-            </div>
-            <div>
-              <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: 500 }}>Access Role</span>
-              <p style={{ fontSize: 15, fontWeight: 600, color: '#000', marginTop: 2, textTransform: 'capitalize' }}>
-                {activeEmployee.role}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Section 3: Salary Structure */}
-        <div className="hrms-card" style={{ gap: 18 }}>
-          <div className="hrms-card-header" style={{ paddingBottom: 14, borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
-            <h3 className="hrms-card-title" style={{ fontSize: 19 }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgb(122,50,227)" strokeWidth="2.2">
-                <line x1="12" y1="1" x2="12" y2="23" />
-                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-              </svg>
-              Salary & Compensation Structure
-            </h3>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            <div>
-              <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: 500 }}>Basic Pay (Monthly)</span>
-              <p style={{ fontSize: 16, fontWeight: 600, color: '#000', marginTop: 2 }}>
-                ${activeEmployee.salary?.basic?.toLocaleString() || '5,800'}
-              </p>
-            </div>
-            <div>
-              <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: 500 }}>Housing Allowance (HRA)</span>
-              <p style={{ fontSize: 16, fontWeight: 600, color: '#000', marginTop: 2 }}>
-                ${activeEmployee.salary?.hra?.toLocaleString() || '2,400'}
-              </p>
-            </div>
-            <div>
-              <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: 500 }}>Special Allowances</span>
-              <p style={{ fontSize: 16, fontWeight: 600, color: '#000', marginTop: 2 }}>
-                ${activeEmployee.salary?.allowances?.toLocaleString() || '1,200'}
-              </p>
-            </div>
-            <div>
-              <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: 500 }}>Standard Deductions</span>
-              <p style={{ fontSize: 16, fontWeight: 600, color: 'rgb(220, 38, 38)', marginTop: 2 }}>
-                -${activeEmployee.salary?.deductions?.toLocaleString() || '600'}
-              </p>
-            </div>
-            <div
-              style={{
-                gridColumn: 'span 2',
-                background: 'rgb(254, 241, 238)',
-                padding: '14px 18px',
-                borderRadius: 14,
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}
-            >
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               <div>
-                <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: 600, textTransform: 'uppercase' }}>
-                  Net Monthly In-Hand
-                </span>
-                <p style={{ fontSize: 22, fontWeight: 700, color: 'rgb(115, 34, 237)' }}>
-                  ${activeEmployee.salary?.net?.toLocaleString() || '8,800'}
+                <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: 500 }}>Full Name</span>
+                <p style={{ fontSize: 15, fontWeight: 600, color: '#000', marginTop: 2 }}>{activeEmployee.name}</p>
+              </div>
+              <div>
+                <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: 500 }}>Employee ID (Read-only)</span>
+                <p style={{ fontSize: 15, fontWeight: 600, color: '#000', marginTop: 2 }}>{activeEmployee.id}</p>
+              </div>
+              <div>
+                <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: 500 }}>Email Address</span>
+                <p style={{ fontSize: 15, fontWeight: 600, color: '#000', marginTop: 2 }}>{activeEmployee.email}</p>
+              </div>
+              <div>
+                <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: 500 }}>Direct Phone</span>
+                <p style={{ fontSize: 15, fontWeight: 600, color: '#000', marginTop: 2 }}>{activeEmployee.phone || '—'}</p>
+              </div>
+              <div>
+                <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: 500 }}>Date of Joining</span>
+                <p style={{ fontSize: 15, fontWeight: 600, color: '#000', marginTop: 2 }}>{activeEmployee.joiningDate || 'Aug 2026'}</p>
+              </div>
+              <div>
+                <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: 500 }}>Work Location</span>
+                <p style={{ fontSize: 15, fontWeight: 600, color: '#000', marginTop: 2 }}>{activeEmployee.workLocation || 'Headquarters'}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* Full Expanded Employee Profile Fields */
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 24 }}>
+          {/* Card 1: Personal Details */}
+          <div className="hrms-card" style={{ gap: 18 }}>
+            <div className="hrms-card-header" style={{ paddingBottom: 14, borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+              <h3 className="hrms-card-title" style={{ fontSize: 19 }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgb(122,50,227)" strokeWidth="2.2">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
+                Personal Details
+              </h3>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div>
+                <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: 500 }}>Employee ID (Read-only)</span>
+                <p style={{ fontSize: 15, fontWeight: 600, color: '#000', marginTop: 2 }}>{activeEmployee.id}</p>
+              </div>
+              <div>
+                <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: 500 }}>Full Legal Name</span>
+                <p style={{ fontSize: 15, fontWeight: 600, color: '#000', marginTop: 2 }}>{activeEmployee.name}</p>
+              </div>
+              <div>
+                <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: 500 }}>Corporate Email</span>
+                <p style={{ fontSize: 15, fontWeight: 600, color: '#000', marginTop: 2 }}>{activeEmployee.email}</p>
+              </div>
+              <div>
+                <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: 500 }}>Phone Number</span>
+                <p style={{ fontSize: 15, fontWeight: 600, color: '#000', marginTop: 2 }}>{activeEmployee.phone || '—'}</p>
+              </div>
+              <div>
+                <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: 500 }}>Date of Birth</span>
+                <p style={{ fontSize: 15, fontWeight: 600, color: '#000', marginTop: 2 }}>{activeEmployee.dob || '14 May 1994'}</p>
+              </div>
+              <div>
+                <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: 500 }}>Gender</span>
+                <p style={{ fontSize: 15, fontWeight: 600, color: '#000', marginTop: 2 }}>{activeEmployee.gender || 'Not Specified'}</p>
+              </div>
+              <div>
+                <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: 500 }}>Emergency Contact</span>
+                <p style={{ fontSize: 15, fontWeight: 600, color: '#000', marginTop: 2 }}>{activeEmployee.emergencyContact || '—'}</p>
+              </div>
+              <div>
+                <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: 500 }}>Work Location</span>
+                <p style={{ fontSize: 15, fontWeight: 600, color: '#000', marginTop: 2 }}>{activeEmployee.workLocation || 'Headquarters'}</p>
+              </div>
+              <div style={{ gridColumn: 'span 2' }}>
+                <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: 500 }}>Residential Address</span>
+                <p style={{ fontSize: 15, fontWeight: 600, color: '#000', marginTop: 2 }}>{activeEmployee.address || '—'}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: Employment Details */}
+          <div className="hrms-card" style={{ gap: 18 }}>
+            <div className="hrms-card-header" style={{ paddingBottom: 14, borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+              <h3 className="hrms-card-title" style={{ fontSize: 19 }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgb(122,50,227)" strokeWidth="2.2">
+                  <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+                  <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+                </svg>
+                Employment Details
+              </h3>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div>
+                <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: 500 }}>Date of Joining</span>
+                <p style={{ fontSize: 15, fontWeight: 600, color: '#000', marginTop: 2 }}>{activeEmployee.joiningDate || 'Aug 2026'}</p>
+              </div>
+              <div>
+                <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: 500 }}>Employment Type</span>
+                <p style={{ fontSize: 15, fontWeight: 600, color: '#000', marginTop: 2 }}>
+                  <span className="hrms-pill present" style={{ padding: '2px 10px', fontSize: 12 }}>
+                    {activeEmployee.employmentType || 'Full-time'}
+                  </span>
                 </p>
               </div>
-              <div style={{ textAlign: 'right' }}>
-                <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: 600, textTransform: 'uppercase' }}>
-                  Annual Package (CTC)
-                </span>
-                <p style={{ fontSize: 18, fontWeight: 600, color: '#000' }}>
-                  {activeEmployee.salary?.annualCTC || '$115,200'}
+              <div>
+                <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: 500 }}>Department</span>
+                <p style={{ fontSize: 15, fontWeight: 600, color: '#000', marginTop: 2 }}>{activeEmployee.department || 'Operations'}</p>
+              </div>
+              <div>
+                <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: 500 }}>Designation</span>
+                <p style={{ fontSize: 15, fontWeight: 600, color: '#000', marginTop: 2 }}>{activeEmployee.title || 'Staff Member'}</p>
+              </div>
+              <div>
+                <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: 500 }}>Reporting Manager</span>
+                <p style={{ fontSize: 15, fontWeight: 600, color: '#000', marginTop: 2 }}>{activeEmployee.manager || 'HR Operations'}</p>
+              </div>
+              <div>
+                <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.5)', fontWeight: 500 }}>Employee Status</span>
+                <p style={{ fontSize: 15, fontWeight: 600, color: '#000', marginTop: 2 }}>
+                  <span className={`hrms-pill ${(activeEmployee.status || 'Active').toLowerCase().replace(' ', '-')}`}>
+                    <span className="hrms-pill-dot" />
+                    {activeEmployee.status || 'Active'}
+                  </span>
                 </p>
               </div>
             </div>
           </div>
         </div>
-
-        {/* Section 4: Documents */}
-        <div className="hrms-card" style={{ gap: 18 }}>
-          <div className="hrms-card-header" style={{ paddingBottom: 14, borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
-            <h3 className="hrms-card-title" style={{ fontSize: 19 }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgb(122,50,227)" strokeWidth="2.2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                <polyline points="14 2 14 8 20 8" />
-                <line x1="16" y1="13" x2="8" y2="13" />
-                <line x1="16" y1="17" x2="8" y2="17" />
-              </svg>
-              Verified Corporate Documents
-            </h3>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {activeEmployee.documents?.map((doc, idx) => (
-              <div
-                key={idx}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '12px 16px',
-                  background: '#fafafa',
-                  borderRadius: 14,
-                  border: '1px solid rgba(0,0,0,0.05)',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgb(122,50,227)" strokeWidth="2">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                    <polyline points="14 2 14 8 20 8" />
-                  </svg>
-                  <div>
-                    <strong style={{ fontSize: 13, color: '#000' }}>{doc.name}</strong>
-                    <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.45)', display: 'block' }}>
-                      {doc.size} · Uploaded {doc.date}
-                    </span>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  className="cta-secondary"
-                  style={{ height: 32, padding: '0 12px', fontSize: 12, borderRadius: 8, background: '#fff' }}
-                  onClick={() => alert(`Downloading verified document: ${doc.name}`)}
-                >
-                  Download
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   )
 }

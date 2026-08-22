@@ -1,3 +1,5 @@
+import React from 'react'
+
 export default function RoleComparison() {
   return (
     <section className="pricing-section" id="roles">
