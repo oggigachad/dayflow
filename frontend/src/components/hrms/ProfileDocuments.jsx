@@ -135,7 +135,22 @@ export default function ProfileDocuments({ employee, isHr = false }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {docCategories.map((category) => {
           const doc = documents.find((d) => (d.document_type || d.type) === category)
-          const canUpload = isHr || (category === 'Resume' || category === 'ID Documents')
+          
+          // Bank details: uploaded by employee user only for security & privacy
+          // Offer Letter / Employment Contract: uploaded by HR Admin
+          // Resume / ID Documents: uploaded by employee or HR
+          let canUpload = false
+          let uploadHint = ''
+          if (category === 'Bank Details') {
+            canUpload = !isHr || currentUser?.id === targetUserId
+            uploadHint = 'Employee self-upload only'
+          } else if (category === 'Offer Letter' || category === 'Employment Contract') {
+            canUpload = isHr
+            uploadHint = 'Admin issued'
+          } else {
+            canUpload = isHr || (!isHr && currentUser?.id === targetUserId)
+            uploadHint = 'Employee onboarding'
+          }
 
           return (
             <div

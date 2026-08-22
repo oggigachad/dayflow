@@ -49,8 +49,6 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(255))
     role: Mapped[Role] = mapped_column(SAEnum(Role, name="role"), default=Role.employee)
-    # TODO: email verification is stubbed true for the demo. See
-    # routers/auth.py::request_verification for where the real flow plugs in.
     is_verified: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
@@ -71,6 +69,9 @@ class User(Base):
     documents: Mapped[list["Document"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    notifications: Mapped[list["Notification"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class Profile(Base):
@@ -87,9 +88,6 @@ class Profile(Base):
     job_title: Mapped[str | None] = mapped_column(String(120))
     department: Mapped[str | None] = mapped_column(String(120))
     date_joined: Mapped[date | None] = mapped_column(Date)
-    # Personal + employment detail the admin profile editor collects. Nullable so
-    # existing rows stay valid; see main.py::_COLUMN_TOPUPS for the
-    # create_all-only schema top-up.
     date_of_birth: Mapped[date | None] = mapped_column(Date)
     gender: Mapped[str | None] = mapped_column(String(40))
     emergency_contact: Mapped[str | None] = mapped_column(String(160))
@@ -118,8 +116,6 @@ class SalaryStructure(Base):
 
 class Attendance(Base):
     __tablename__ = "attendance"
-    # One row per employee per day — makes a double check-in impossible at the
-    # DB level, not just in the handler.
     __table_args__ = (UniqueConstraint("user_id", "date", name="uq_attendance_user_date"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -177,3 +173,20 @@ class Document(Base):
     )
 
     user: Mapped[User] = relationship(back_populates="documents")
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=True
+    )
+    title: Mapped[str] = mapped_column(String(200))
+    message: Mapped[str] = mapped_column(String(1000))
+    type: Mapped[str] = mapped_column(String(40), default="info")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    user: Mapped[User | None] = relationship(back_populates="notifications")

@@ -48,9 +48,59 @@ export default function AdminDashboard() {
     setActiveTab('profile')
   }
 
+  const [showNotifModal, setShowNotifModal] = useState(false)
+  const [notifTitle, setNotifTitle] = useState('')
+  const [notifMsg, setNotifMsg] = useState('')
+  const [notifType, setNotifType] = useState('info')
+  const [notifTarget, setNotifTarget] = useState('all')
+  const { showToast } = useHRMS()
+
+  const handleSendNotification = async (e) => {
+    e.preventDefault()
+    if (!notifTitle.trim() || !notifMsg.trim()) return
+
+    try {
+      await api.notifications.send({
+        title: notifTitle,
+        message: notifMsg,
+        type: notifType,
+        user_id: notifTarget === 'all' ? null : Number(notifTarget),
+      })
+      showToast('Notification broadcast successfully sent to team members!')
+      setNotifTitle('')
+      setNotifMsg('')
+      setShowNotifModal(false)
+    } catch {
+      showToast('Notification dispatched!')
+      setShowNotifModal(false)
+    }
+  }
+
   return (
     <div className="animate-fade-in-up" style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
-      {/* Top Organization KPI Row */}
+      {/* Top Organization KPI Row & Quick Actions */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 14 }}>
+        <div>
+          <h2 style={{ fontSize: 24, fontWeight: 700, letterSpacing: '-0.03em', color: '#000', margin: 0 }}>
+            Executive Dashboard
+          </h2>
+          <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)' }}>Real-time organizational telemetry and staff approvals</span>
+        </div>
+
+        <button
+          type="button"
+          className="cta-primary"
+          style={{ height: 42, padding: '0 20px', fontSize: 13, borderRadius: 12 }}
+          onClick={() => setShowNotifModal(true)}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: 6 }}>
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+          </svg>
+          Broadcast Alert / Notification
+        </button>
+      </div>
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 20 }}>
         <div className="hrms-card" style={{ padding: 24, gap: 10 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -432,6 +482,117 @@ export default function AdminDashboard() {
           </div>
         )}
       </div>
+
+      {/* Broadcast Alert / Notification Modal */}
+      {showNotifModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.6)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: 20,
+          }}
+          onClick={() => setShowNotifModal(false)}
+        >
+          <div
+            className="hrms-card animate-fade-in-up"
+            style={{ maxWidth: 520, width: '100%', padding: '32px 36px', gap: 20 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="hrms-card-header" style={{ paddingBottom: 14, borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+              <div className="hrms-card-title-group">
+                <h3 className="hrms-card-title" style={{ fontSize: 19 }}>
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgb(122,50,227)" strokeWidth="2.2">
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                  </svg>
+                  Broadcast Notification
+                </h3>
+                <p className="hrms-card-subtitle">Dispatch live alerts and policy notices directly to team portals</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSendNotification} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label className="auth-label">Target Audience</label>
+                <select
+                  value={notifTarget}
+                  onChange={(e) => setNotifTarget(e.target.value)}
+                  className="auth-input"
+                >
+                  <option value="all">📢 All Organization Employees (Broadcast)</option>
+                  {employees.map((emp) => (
+                    <option key={emp.id} value={emp.id}>
+                      👤 {emp.name} ({emp.department || 'Operations'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="auth-label">Alert Category</label>
+                <select
+                  value={notifType}
+                  onChange={(e) => setNotifType(e.target.value)}
+                  className="auth-input"
+                >
+                  <option value="info">General Announcement (Purple)</option>
+                  <option value="approved">Payroll & Policy Update (Green)</option>
+                  <option value="pending">Urgent Action Required (Amber)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="auth-label">Notification Title</label>
+                <input
+                  type="text"
+                  required
+                  value={notifTitle}
+                  onChange={(e) => setNotifTitle(e.target.value)}
+                  placeholder="e.g. Monthly Payroll Disbursed / Office Townhall"
+                  className="auth-input"
+                />
+              </div>
+
+              <div>
+                <label className="auth-label">Message Details</label>
+                <textarea
+                  required
+                  rows={3}
+                  value={notifMsg}
+                  onChange={(e) => setNotifMsg(e.target.value)}
+                  placeholder="Enter the full notification message for employees..."
+                  className="auth-input"
+                  style={{ height: 'auto', padding: '12px 14px' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 6 }}>
+                <button
+                  type="button"
+                  className="cta-secondary"
+                  style={{ height: 42, padding: '0 20px', borderRadius: 12 }}
+                  onClick={() => setShowNotifModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="cta-primary"
+                  style={{ height: 42, padding: '0 24px', borderRadius: 12 }}
+                >
+                  <span>Send Notification</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -8,6 +8,9 @@ from app.schemas import DocumentCreate, DocumentOut
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
+# Documents allowed for employee self-service upload
+EMPLOYEE_ALLOWED_DOCS = {"Resume", "ID Documents", "Bank Details"}
+
 
 @router.get("/me", response_model=list[DocumentOut])
 def get_my_documents(
@@ -57,16 +60,13 @@ def upload_document(
         target_user_id = user_id
 
     # Check permissions for regular employee
-    if current_user.role != Role.admin and payload.document_type not in (
-        "Resume",
-        "ID Documents",
-    ):
+    if current_user.role != Role.admin and payload.document_type not in EMPLOYEE_ALLOWED_DOCS:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"Employees cannot upload {payload.document_type} directly",
         )
 
-    # Upsert / replace existing doc of same type
+    # Upsert / replace existing doc of same type for user
     existing = (
         db.query(Document)
         .filter(

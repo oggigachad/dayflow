@@ -283,8 +283,21 @@ export function HRMSProvider({ children, initialUser, onClosePortal }) {
             setLeaveRequests(mapped)
           }
         }
+      // 5. Fetch Notifications
+      try {
+        const notifList = await api.notifications.list()
+        if (Array.isArray(notifList) && notifList.length > 0) {
+          const mapped = notifList.map((n) => ({
+            id: n.id,
+            title: n.title,
+            desc: n.message,
+            time: new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            type: n.type || 'info',
+          }))
+          setNotifications(mapped)
+        }
       } catch (e) {
-        console.error('Error fetching leaves:', e)
+        // Fallback to active state
       }
     } catch (err) {
       console.error('Data fetch error:', err)

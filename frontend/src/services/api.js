@@ -236,6 +236,25 @@ export const api = {
     },
   },
 
+  notifications: {
+    list: async () => {
+      return request('/notifications')
+    },
+
+    send: async ({ title, message, type = 'info', user_id = null }) => {
+      return request('/notifications', {
+        method: 'POST',
+        body: JSON.stringify({ title, message, type, user_id }),
+      })
+    },
+
+    delete: async (id) => {
+      return request(`/notifications/${id}`, {
+        method: 'DELETE',
+      })
+    },
+  },
+
   analytics: {
     getSummary: async () => {
       return request('/analytics/summary')
