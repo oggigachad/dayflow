@@ -12,6 +12,7 @@ type Entries = Record<string, number>;
  * Keys are free-form on purpose — every company names these differently, and a
  * fixed enum would need a migration per client. Blank-named rows are dropped on
  * save so a half-typed row can't create an empty key.
+ * checked keyvalueeditor function, 
  */
 export function KeyValueEditor({
   legend,
