@@ -41,16 +41,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   // Restore the session on first mount. A stored token that no longer works is
-  // cleared rather than left to fail every later request.
+  // cleared rather than left to fail every later request. State lands in the
+  // promise continuation, never synchronously inside the effect.
   useEffect(() => {
-    if (!tokens.access) {
+    let cancelled = false;
+
+    const restore = async () => {
+      if (!tokens.access) return null;
+      try {
+        return await get<User>("/auth/me");
+      } catch {
+        tokens.clear();
+        return null;
+      }
+    };
+
+    void restore().then((me) => {
+      if (cancelled) return;
+      setUser(me);
       setLoading(false);
-      return;
-    }
-    get<User>("/auth/me")
-      .then(setUser)
-      .catch(() => tokens.clear())
-      .finally(() => setLoading(false));
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const authenticate = useCallback(async (pair: TokenPair) => {

@@ -40,7 +40,7 @@ export default function LoginPage() {
     }
   }
 
-  function useDemo(demoEmail: string) {
+  function fillDemo(demoEmail: string) {
     setEmail(demoEmail);
     setPassword(DEMO_PASSWORD);
     setError(null);
@@ -102,7 +102,7 @@ export default function LoginPage() {
               type="button"
               variant="secondary"
               size="sm"
-              onClick={() => useDemo(account.email)}
+              onClick={() => fillDemo(account.email)}
             >
               {account.label}
             </Button>

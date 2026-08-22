@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import {
   Alert,
@@ -29,24 +29,25 @@ function ReadOnlyRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-export default function EmployeeProfilePage() {
-  const { user, refreshUser } = useAuth();
-  const profile = useApi<Profile>("/profile/me");
-
-  const [form, setForm] = useState({ phone: "", address: "", profile_picture_url: "" });
+/**
+ * Seeded from `initial` by a lazy useState initializer, so there is no
+ * copy-props-into-state effect. Rendered only once the profile has loaded.
+ */
+function EditableDetails({
+  initial,
+  onSaved,
+}: {
+  initial: Profile;
+  onSaved: () => Promise<void> | void;
+}) {
+  const [form, setForm] = useState(() => ({
+    phone: initial.phone ?? "",
+    address: initial.address ?? "",
+    profile_picture_url: initial.profile_picture_url ?? "",
+  }));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-
-  // Seed the form once the profile lands.
-  useEffect(() => {
-    if (!profile.data) return;
-    setForm({
-      phone: profile.data.phone ?? "",
-      address: profile.data.address ?? "",
-      profile_picture_url: profile.data.profile_picture_url ?? "",
-    });
-  }, [profile.data]);
 
   const set = (key: keyof typeof form) => (event: { target: { value: string } }) =>
     setForm((previous) => ({ ...previous, [key]: event.target.value }));
@@ -58,20 +59,81 @@ export default function EmployeeProfilePage() {
     setBusy(true);
     try {
       // Empty string means "cleared", so send null rather than "".
-      await put("/profile/me", {
+      await put<Profile>("/profile/me", {
         phone: form.phone.trim() || null,
         address: form.address.trim() || null,
         profile_picture_url: form.profile_picture_url.trim() || null,
       });
       setNotice("Saved.");
-      profile.reload();
-      await refreshUser();
+      await onSaved();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not save your changes");
     } finally {
       setBusy(false);
     }
   }
+
+  return (
+    <form onSubmit={onSubmit} className="space-y-4 p-5" noValidate>
+      {error ? <Alert>{error}</Alert> : null}
+      {notice ? <Alert tone="success">{notice}</Alert> : null}
+
+      <Field label="Phone">
+        <Input
+          type="tel"
+          autoComplete="tel"
+          value={form.phone}
+          onChange={set("phone")}
+          placeholder="+91 98450 11223"
+          maxLength={20}
+        />
+      </Field>
+
+      <Field label="Address">
+        <Input
+          autoComplete="street-address"
+          value={form.address}
+          onChange={set("address")}
+          placeholder="14, Indiranagar 100ft Road, Bengaluru 560038"
+          maxLength={300}
+        />
+      </Field>
+
+      <Field label="Profile picture URL" hint="Paste a link to an image.">
+        <Input
+          type="url"
+          value={form.profile_picture_url}
+          onChange={set("profile_picture_url")}
+          placeholder="https://…"
+          maxLength={500}
+        />
+      </Field>
+
+      <div className="flex gap-2">
+        <Button type="submit" loading={busy}>
+          Save changes
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() =>
+            setForm({
+              phone: initial.phone ?? "",
+              address: initial.address ?? "",
+              profile_picture_url: initial.profile_picture_url ?? "",
+            })
+          }
+        >
+          Reset
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+export default function EmployeeProfilePage() {
+  const { user, refreshUser } = useAuth();
+  const profile = useApi<Profile>("/profile/me");
 
   if (profile.loading) {
     return (
@@ -100,60 +162,15 @@ export default function EmployeeProfilePage() {
       <div className="grid gap-6 lg:grid-cols-[1fr_22rem] lg:items-start">
         <Card>
           <CardHeader title="Your details" subtitle="Only these three are yours to change." />
-          <form onSubmit={onSubmit} className="space-y-4 p-5" noValidate>
-            {error ? <Alert>{error}</Alert> : null}
-            {notice ? <Alert tone="success">{notice}</Alert> : null}
-
-            <Field label="Phone">
-              <Input
-                type="tel"
-                autoComplete="tel"
-                value={form.phone}
-                onChange={set("phone")}
-                placeholder="+91 98450 11223"
-                maxLength={20}
-              />
-            </Field>
-
-            <Field label="Address">
-              <Input
-                autoComplete="street-address"
-                value={form.address}
-                onChange={set("address")}
-                placeholder="14, Indiranagar 100ft Road, Bengaluru 560038"
-                maxLength={300}
-              />
-            </Field>
-
-            <Field label="Profile picture URL" hint="Paste a link to an image.">
-              <Input
-                type="url"
-                value={form.profile_picture_url}
-                onChange={set("profile_picture_url")}
-                placeholder="https://…"
-                maxLength={500}
-              />
-            </Field>
-
-            <div className="flex gap-2">
-              <Button type="submit" loading={busy}>
-                Save changes
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() =>
-                  setForm({
-                    phone: data.phone ?? "",
-                    address: data.address ?? "",
-                    profile_picture_url: data.profile_picture_url ?? "",
-                  })
-                }
-              >
-                Reset
-              </Button>
-            </div>
-          </form>
+          {/* key: if the server copy changes, the form re-seeds from it. */}
+          <EditableDetails
+            key={`${data.phone}|${data.address}|${data.profile_picture_url}`}
+            initial={data}
+            onSaved={async () => {
+              profile.reload();
+              await refreshUser();
+            }}
+          />
         </Card>
 
         <Card>
