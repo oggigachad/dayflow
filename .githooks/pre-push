@@ -1,0 +1,14 @@
+#!/bin/sh
+set -e
+
+echo "🔍 Running backend tests..."
+cd backend
+uv run pytest -q || { echo "❌ Backend tests failed — push aborted."; exit 1; }
+uv run python -m app.security || { echo "❌ Security self-check failed — push aborted."; exit 1; }
+
+echo "🔍 Running frontend checks..."
+cd ../frontend
+npx tsc --noEmit || { echo "❌ Frontend typecheck failed — push aborted."; exit 1; }
+npm run build || { echo "❌ Frontend build failed — push aborted."; exit 1; }
+
+echo "✅ All tests passed — ready to push!"

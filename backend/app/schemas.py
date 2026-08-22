@@ -225,3 +225,18 @@ class AnalyticsSummary(BaseModel):
     present_today: int
     on_leave_today: int
     pending_leave_requests: int
+
+
+# --- audit log ----------------------------------------------------------
+
+
+class AuditLogOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    actor_id: int | None = None
+    action: str
+    target_table: str | None = None
+    target_id: int | None = None
+    metadata_payload: dict = Field(default_factory=dict)
+    created_at: datetime

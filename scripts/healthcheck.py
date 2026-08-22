@@ -42,7 +42,7 @@ WEB_PORTS = (3000, 3001)
 WEB_MARKERS = ("Dayflow", "Demo accounts")
 
 DB = "dayflow"
-TABLES = ("users", "profiles", "salary_structures", "attendance", "leave_requests")
+TABLES = ("users", "profiles", "salary_structures", "attendance", "leave_requests", "audit_log")
 
 ADMIN = "priya.nair@dayflow.in"
 EMPLOYEE = "meera.iyer@dayflow.in"
@@ -55,6 +55,7 @@ ADMIN_ONLY_ROUTES = (
     "/leave",
     "/profile/1",
     "/payroll/1",
+    "/audit",
 )
 
 WEB_ROUTES = (

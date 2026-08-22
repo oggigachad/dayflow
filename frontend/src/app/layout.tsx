@@ -12,7 +12,11 @@ export const metadata: Metadata = {
     "Dayflow is an HR management system for attendance, leave, payroll and people data.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en" className={`${geistSans.variable} h-full antialiased`}>
       <body className="min-h-full">

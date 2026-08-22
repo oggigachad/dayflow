@@ -15,6 +15,7 @@ from app.database import Base, SessionLocal, engine
 from app.models import (
     Attendance,
     AttendanceStatus,
+    AuditLog,
     LeaveRequest,
     LeaveStatus,
     LeaveType,
@@ -100,7 +101,6 @@ def _attendance_history(user_id: int, weeks: int = 3) -> list[Attendance]:
         day = TODAY - timedelta(days=offset)
         if day.weekday() >= 5:  # weekend
             continue
-        # A believable mix rather than a wall of identical "present" rows.
         if offset % 11 == 0:
             rows.append(Attendance(user_id=user_id, date=day, status=AttendanceStatus.absent))
             continue
@@ -131,8 +131,6 @@ def seed() -> None:
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
-        # Idempotent: drop the demo rows so re-running does not stack duplicates.
-        # Cascades handle profiles, salaries, attendance, and leave.
         db.execute(delete(User).where(User.email.in_([p["email"] for p in PEOPLE])))
         db.commit()
 
@@ -163,13 +161,12 @@ def seed() -> None:
             users[person["employee_id"]] = user
         db.commit()
 
+        priya = users["ADM001"]
         arjun, meera, rohit = users["EMP101"], users["EMP102"], users["EMP103"]
 
         for user in (arjun, meera, rohit):
             db.add_all(_attendance_history(user.id))
 
-        # Arjun is already checked in today (so "Check out" is the live action);
-        # Meera has not checked in yet (so "Check in" is live). Two states, one demo.
         db.add(
             Attendance(
                 user_id=arjun.id,
@@ -181,7 +178,6 @@ def seed() -> None:
 
         db.add_all(
             [
-                # Pending — this is the one you approve live on stage.
                 LeaveRequest(
                     user_id=meera.id,
                     leave_type=LeaveType.paid,
@@ -198,7 +194,6 @@ def seed() -> None:
                     remarks="Dental surgery, doctor advised two days' rest.",
                     status=LeaveStatus.pending,
                 ),
-                # Approved and covering today, so analytics' on-leave count is non-zero.
                 LeaveRequest(
                     user_id=rohit.id,
                     leave_type=LeaveType.paid,
@@ -206,6 +201,7 @@ def seed() -> None:
                     end_date=TODAY,
                     remarks="Extending the long weekend.",
                     status=LeaveStatus.approved,
+                    reviewed_by=priya.id,
                     admin_comment="Approved. Please hand over the regression suite.",
                 ),
                 LeaveRequest(
@@ -215,6 +211,7 @@ def seed() -> None:
                     end_date=TODAY - timedelta(days=14),
                     remarks="Sabbatical week.",
                     status=LeaveStatus.rejected,
+                    reviewed_by=priya.id,
                     admin_comment="Rejected — clashes with the release freeze. Re-apply for July.",
                 ),
                 LeaveRequest(
@@ -224,10 +221,36 @@ def seed() -> None:
                     end_date=TODAY - timedelta(days=29),
                     remarks="Viral fever.",
                     status=LeaveStatus.approved,
+                    reviewed_by=priya.id,
                     admin_comment="Get well soon.",
                 ),
             ]
         )
+
+        # Seed audit log entries
+        db.add_all(
+            [
+                AuditLog(
+                    actor_id=priya.id,
+                    action="leave.approve",
+                    target_table="leave_requests",
+                    metadata_payload={"employee": "rohit.desai@dayflow.in", "decision": "approved"},
+                ),
+                AuditLog(
+                    actor_id=priya.id,
+                    action="leave.reject",
+                    target_table="leave_requests",
+                    metadata_payload={"employee": "arjun.rao@dayflow.in", "decision": "rejected"},
+                ),
+                AuditLog(
+                    actor_id=priya.id,
+                    action="payroll.update",
+                    target_table="salary_structures",
+                    metadata_payload={"target_employee": "arjun.rao@dayflow.in", "revised_base": 1_800_000},
+                ),
+            ]
+        )
+
         db.commit()
 
         print(f"Seeded {len(PEOPLE)} users (password for all: {PASSWORD})")

@@ -1,30 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_user, require_admin
-from app.models import SalaryStructure, User
+from app.models import User
 from app.schemas import SalaryOut, SalaryUpdate
+from app.services import payroll_service
 
 router = APIRouter(prefix="/payroll", tags=["payroll"])
-
-
-def _out(salary: SalaryStructure) -> SalaryOut:
-    out = SalaryOut.model_validate(salary)
-    out.gross = float(salary.base_salary) + sum((salary.allowances or {}).values())
-    out.net = out.gross - sum((salary.deductions or {}).values())
-    return out
-
-
-def _salary_or_404(db: Session, user_id: int) -> SalaryStructure:
-    salary = (
-        db.query(SalaryStructure).filter(SalaryStructure.user_id == user_id).one_or_none()
-    )
-    if salary is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="No salary structure on file"
-        )
-    return salary
 
 
 @router.get("/me", response_model=SalaryOut)
@@ -32,26 +15,23 @@ def my_payroll(
     current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> SalaryOut:
     """Read-only for employees. There is deliberately no PUT /payroll/me."""
-    return _out(_salary_or_404(db, current_user.id))
+    salary = payroll_service.get_salary_by_user_id(db, current_user.id)
+    return payroll_service.format_salary_out(salary)
 
 
 @router.get("/{user_id}", response_model=SalaryOut)
 def get_payroll(
     user_id: int, _: User = Depends(require_admin), db: Session = Depends(get_db)
 ) -> SalaryOut:
-    return _out(_salary_or_404(db, user_id))
+    salary = payroll_service.get_salary_by_user_id(db, user_id)
+    return payroll_service.format_salary_out(salary)
 
 
 @router.put("/{user_id}", response_model=SalaryOut)
 def update_payroll(
     user_id: int,
     payload: SalaryUpdate,
-    _: User = Depends(require_admin),
+    current_user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> SalaryOut:
-    salary = _salary_or_404(db, user_id)
-    for field, value in payload.model_dump(exclude_unset=True).items():
-        setattr(salary, field, value)
-    db.commit()
-    db.refresh(salary)
-    return _out(salary)
+    return payroll_service.update_employee_salary(db, current_user, user_id, payload)
